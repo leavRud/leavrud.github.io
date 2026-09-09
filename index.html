@@ -34,6 +34,28 @@
 </head>
 <body>
 
+<!-- ============ ЭКРАН ЗАГРУЗКИ ============ -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="loading-board-bg" aria-hidden="true"></div>
+
+  <div class="loading-content">
+    <div class="loading-knight-wrap">
+      <svg class="loading-ring" viewBox="0 0 140 140" aria-hidden="true">
+        <circle class="loading-ring-track" cx="70" cy="70" r="60"></circle>
+        <circle class="loading-ring-progress" cx="70" cy="70" r="60"></circle>
+      </svg>
+      <img id="loadingKnightImg" src="assests/knight.png" class="loading-knight" alt="">
+      <script>if (window.__homeKnightSrc) document.getElementById('loadingKnightImg').src = window.__homeKnightSrc;</script>
+    </div>
+
+    <div class="loading-logo">chessai</div>
+
+    <div class="loading-status">
+      <span id="loadingStatusText">Загрузка</span><span class="loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ГЛАВНЫЙ ЭКРАН ============ -->
 <div id="homeScreen" class="home-screen">
   <div class="home-board-bg" aria-hidden="true"></div>
