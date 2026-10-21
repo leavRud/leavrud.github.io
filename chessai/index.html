@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>chessai — игра против нейросети</title>
+
+<!-- Применяем тему ДО первой отрисовки -->
+<script>
+(function () {
+  try {
+    var theme = localStorage.getItem('chessTheme') || 'light';
+    if (theme === 'dark') document.documentElement.classList.add('dark');
+    var accent = localStorage.getItem('chessAccent') || 'gold';
+    document.documentElement.setAttribute('data-accent', accent);
+    window.__homeKnightSrc = { gold: 'assests/knight.png', maroon: 'assests/knight red.png', blue: 'assests/knight blue.png', green: 'assests/knight green.png' }[accent] || 'assests/knight.png';
+    var boardStyle = localStorage.getItem('chessBoardStyle') || 'classic';
+    document.documentElement.setAttribute('data-board-style', boardStyle);
+    if (localStorage.getItem('chessGlow') === '0') document.documentElement.classList.add('no-glow');
+  } catch (e) {}
+})();
+</script>
+
+<!-- chessboard.js CSS -->
+<link rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+
+<!-- Шрифты -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&family=Cormorant+Garamond:wght@600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ============ ЭКРАН ЗАГРУЗКИ ============ -->
+<div id="loadingScreen" class="loading-screen">
+  <div class="loading-board-bg" aria-hidden="true"></div>
+
+  <div class="loading-content">
+    <div class="loading-knight-wrap">
+      <svg class="loading-ring" viewBox="0 0 140 140" aria-hidden="true">
+        <circle class="loading-ring-track" cx="70" cy="70" r="60"></circle>
+        <circle class="loading-ring-progress" cx="70" cy="70" r="60"></circle>
+      </svg>
+      <img id="loadingKnightImg" src="assests/knight.png" class="loading-knight" alt="">
+      <script>if (window.__homeKnightSrc) document.getElementById('loadingKnightImg').src = window.__homeKnightSrc;</script>
+    </div>
+
+    <div class="loading-logo">chessai</div>
+
+    <div class="loading-status">
+      <span id="loadingStatusText">Загрузка</span><span class="loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ГЛАВНЫЙ ЭКРАН ============ -->
+<div id="homeScreen" class="home-screen">
+  <div class="home-board-bg" aria-hidden="true"></div>
+  <div id="homeKnights" class="home-knights-layer" aria-hidden="true"></div>
+
+  <div class="home-topbar">
+    <h1 class="home-logo">chessai</h1>
+    <button id="homeSettingsBtn" class="settings-icon-btn menu-icon-btn" type="button" title="Меню" aria-label="Меню">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M3 6.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm0 5.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm1 4.5a1 1 0 1 0 0 2h16a1 1 0 1 0 0-2H4Z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="home-center">
+    <div class="home-oval">
+      <!-- Голова коня + иконка режима -->
+      <div class="home-knight-wrap">
+        <img id="homeKnightImg" src="assests/knight.png" class="knight-head" alt="голова коня">
+        <script>if (window.__homeKnightSrc) document.getElementById('homeKnightImg').src = window.__homeKnightSrc;</script>
+      </div>
+
+      <!-- Кнопка "Играть" -->
+      <span id="homePlayText" class="home-play-text">ИГРАТЬ</span>
+
+      <!-- Переключатель режимов -->
+      <div class="home-mode-select" role="group" aria-label="Режим игры">
+        <button type="button" class="home-mode-btn is-active" data-mode="ai" aria-pressed="true">Против стокфиша</button>
+        <button type="button" class="home-mode-btn" data-mode="friend" aria-pressed="false">На одном пк против друга</button>
+        <button type="button" class="home-mode-btn" data-mode="characters" aria-pressed="false">Против персонажей (Beta)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app hidden">
+
+  <header class="topbar neumorphic-raised">
+    <h1 class="logo">chessai</h1>
+    <div class="topbar-actions">
+      <span id="modeLabel" class="badge"></span>
+      <button id="appSettingsBtn" class="settings-icon-btn menu-icon-btn" type="button" title="Меню" aria-label="Меню">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 6.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm0 5.5a1 1 0 0 1 1-1h16a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Zm1 4.5a1 1 0 1 0 0 2h16a1 1 0 1 0 0-2H4Z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <!-- ============ ДОСКА ============ -->
+    <section class="board-card neumorphic-raised">
+
+      <div class="board-frame neumorphic-inset">
+        <div id="board" class="board"></div>
+      </div>
+
+      <div class="status-row">
+        <div class="timers">
+          <span id="timerWhite" class="timer" data-player="w">♔ 10:00</span>
+          <span id="timerBlack" class="timer" data-player="b">♚ 10:00</span>
+        </div>
+        <div id="statusText" class="status-text">Загрузка партии…</div>
+        <div id="thinkingIndicator" class="thinking hidden" aria-label="Нейросеть думает">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <div id="connectionBanner" class="connection-banner hidden">
+        <p id="connectionBannerText"></p>
+        <button id="retryAiBtn" class="btn btn-danger btn-sm" type="button">Повторить</button>
+      </div>
+
+      <div class="captured-row">
+        <div class="captured-group">
+          <span class="captured-label">Взято белыми</span>
+          <div id="capturedWhite" class="captured-pieces"></div>
+        </div>
+        <div class="captured-group">
+          <span class="captured-label">Взято чёрными</span>
+          <div id="capturedBlack" class="captured-pieces"></div>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button id="resignBtn" class="btn btn-danger" type="button">Сдаться</button>
+        <button id="newGameBtn" class="btn btn-ghost" type="button">Новая игра</button>
+      </div>
+
+      <div class="move-list-wrap">
+        <div id="moveList" class="move-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ ЧАТ ============ -->
+    <aside class="chat-card neumorphic-raised">
+      <div class="chat-header">
+        <h2 id="chatTitle">Диалог с нейросетью</h2>
+        <span id="chatHint" class="chat-hint"></span>
+      </div>
+
+      <div id="chatLog" class="chat-log"></div>
+
+      <div class="chat-input-row">
+        <textarea id="chatInput" rows="2"
+          placeholder="Спросите о позиции, ходе, угрозах, совете…"></textarea>
+        <button id="askBtn" class="btn btn-primary" type="button">Спросить</button>
+      </div>
+    </aside>
+
+  </main>
+</div>
+
+<!-- ============ МОДАЛКА: ЦВЕТ + СЛОЖНОСТЬ ============ -->
+<div id="colorModal" class="modal-overlay hidden">
+  <div class="modal neumorphic-raised wide difficulty-modal">
+    <h2>Против нейросети</h2>
+    <p class="modal-sub">За кого играете вы? Нейросеть возьмёт себе оставшийся цвет.</p>
+
+    <div class="diff-section">
+      <span class="diff-section-label">Цвет</span>
+      <div class="color-choice-row">
+        <button type="button" class="color-choice-btn" data-color="w" aria-pressed="false">
+          <span class="color-choice-swatch color-choice-white"></span>Белые
+        </button>
+        <button type="button" class="color-choice-btn" data-color="b" aria-pressed="false">
+          <span class="color-choice-swatch color-choice-black"></span>Чёрные
+        </button>
+      </div>
+    </div>
+
+    <div class="diff-section">
+      <span class="diff-section-label">Сложность</span>
+      <div class="diff-choice-row">
+        <button type="button" class="diff-choice-btn diff-easy" data-level="8" aria-pressed="false">
+          <span class="diff-dot"></span>Лёгкий
+        </button>
+        <button type="button" class="diff-choice-btn diff-medium" data-level="14" aria-pressed="false">
+          <span class="diff-dot"></span>Средний
+        </button>
+        <button type="button" class="diff-choice-btn diff-hard" data-level="20" aria-pressed="false">
+          <span class="diff-dot"></span>Сложный
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="startAiGameBtn" class="btn btn-accent" type="button" disabled>Начать игру</button>
+      <button id="colorModalBackBtn" class="btn btn-ghost" type="button">Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: НАСТРОЙКА ПЕРСОНАЖА ============ -->
+<div id="characterSetupModal" class="modal-overlay hidden">
+  <div class="modal neumorphic-raised wide character-modal">
+    <h2>Против персонажа <span class="beta-tag">Beta</span></h2>
+    <p class="modal-sub">Выберите готовое имя или опишите своего персонажа — нейросеть создаст его игровой профиль и стиль игры.</p>
+
+    <div class="char-tabs" role="tablist">
+      <button type="button" class="char-tab is-active" data-tab="name" role="tab" aria-selected="true">Имя персонажа</button>
+      <button type="button" class="char-tab" data-tab="desc" role="tab" aria-selected="false">Создать своего персонажа</button>
+    </div>
+
+    <div id="charNameTab" class="char-tab-panel">
+      <input id="charNameInput" type="text" class="char-text-input" placeholder="Например: Магнус Карлсен, Шерлок Холмс, Гэндальф…" maxlength="60">
+      <div class="char-examples" id="charExamples"></div>
+    </div>
+
+    <div id="charDescTab" class="char-tab-panel hidden">
+      <textarea id="charDescInput" class="char-textarea" rows="4" maxlength="500" placeholder="Опишите характер и стиль игры персонажа. Например: «Старый гроссмейстер, который ненавидит ничьи и всегда жертвует фигуры»…"></textarea>
+    </div>
+
+    <div id="charSetupError" class="char-setup-error hidden"></div>
+
+    <div class="modal-actions">
+      <button id="charCreateBtn" class="btn btn-accent" type="button">Создать персонажа</button>
+      <button id="charSetupBackBtn" class="btn btn-ghost" type="button">Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: КАРТОЧКА ПЕРСОНАЖА ============ -->
+<div id="characterCardModal" class="modal-overlay hidden">
+  <div class="modal neumorphic-raised wide character-modal character-card-modal">
+    <div id="characterCardLoading" class="char-card-loading hidden">
+      <div class="thinking"><span></span><span></span><span></span></div>
+      <p>Нейросеть создаёт персонажа…</p>
+    </div>
+    <div id="characterCardBody" class="hidden">
+      <div class="char-card-head">
+        <span class="char-card-icon">♞</span>
+        <div class="char-card-headtext">
+          <h2 id="charCardName">—</h2>
+          <p id="charCardDesc" class="char-card-desc"></p>
+        </div>
+        <span id="charCardElo" class="char-card-elo"></span>
+      </div>
+
+      <div class="char-card-section-title">Игровой профиль</div>
+      <div id="charCardBars" class="char-card-bars"></div>
+
+      <div class="char-card-section-title">Стиль игры</div>
+      <p id="charCardStyle" class="char-card-style"></p>
+      <p id="charCardTone" class="char-card-tone"></p>
+
+      <div class="char-card-opponent-note">
+        ⚔️ Это ваш соперник за доской, а не помощник: во время партии он не подсказывает ходы и не анализирует позицию в вашу пользу — только комментирует происходящее в своём характере.
+      </div>
+    </div>
+    <div id="charCardError" class="char-setup-error hidden"></div>
+    <div class="modal-actions char-card-actions">
+      <button id="charCardBackBtn" class="btn btn-ghost" type="button">Назад</button>
+      <button id="charCardRegenBtn" class="btn btn-ghost" type="button">Перегенерировать</button>
+      <button id="charCardPlayBtn" class="btn btn-accent" type="button">Играть</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: ИТОГ ПАРТИИ ============ -->
+<div id="resultModal" class="modal-overlay hidden">
+  <div class="modal neumorphic-raised wide">
+    <h2 id="resultTitle">Игра окончена</h2>
+    <p id="resultText" class="modal-sub"></p>
+
+    <div id="characterResultBlock" class="character-result-block hidden">
+      <div id="characterResultContent"></div>
+    </div>
+
+    <div id="analysisBlock" class="analysis-block hidden">
+      <div id="analysisLoading" class="analysis-loading hidden">Анализ партии движком…</div>
+      <div id="analysisContent" class="analysis-content"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="requestAnalysisBtn" class="btn btn-accent" type="button">Анализ партии</button>
+      <button id="closeResultBtn" class="btn btn-ghost" type="button">Новая игра</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: ДЕТАЛИ ХОДА ============ -->
+<div id="moveDetailModal" class="modal-overlay hidden achv-modal-overlay">
+  <div class="modal neumorphic-raised wide achv-modal move-detail-modal">
+    <div class="achv-modal-header">
+      <h2 id="moveDetailTitle">Анализ хода</h2>
+      <button id="moveDetailCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="move-detail-layout">
+      <div class="move-detail-board-wrap">
+        <div id="moveDetailBoard" class="mini-board"></div>
+        <svg id="moveDetailArrow" class="move-detail-arrow" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="move-detail-info">
+        <div class="move-detail-info-head">
+          <span id="moveDetailBadge" class="move-detail-badge"></span>
+          <p id="moveDetailSan" class="modal-sub"></p>
+        </div>
+        <div class="move-detail-scroll">
+          <div id="moveDetailLoading" class="analysis-loading">Анализ позиции…</div>
+          <div id="moveDetailComment" class="analysis-comment"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: ОБРАТНАЯ СВЯЗЬ (Supabase, доступна из "О приложении") ============ -->
+<div id="feedbackModal" class="modal-overlay achv-modal-overlay hidden">
+  <div class="modal neumorphic-raised achv-modal feedback-modal" role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+    <div class="achv-modal-header">
+      <h2 id="feedbackModalTitle">Обратная связь</h2>
+      <button id="feedbackCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
+    </div>
+
+    <form id="feedbackForm" class="feedback-form" novalidate>
+      <div id="feedbackFieldsGroup">
+        <div class="feedback-field">
+          <label class="settings-row-label" for="feedbackType">Тип обращения</label>
+          <select id="feedbackType" class="settings-select">
+            <option value="bug">Ошибка</option>
+            <option value="suggestion">Предложение</option>
+            <option value="question">Вопрос</option>
+            <option value="other">Другое</option>
+          </select>
+        </div>
+
+        <div class="feedback-field">
+          <label class="settings-row-label" for="feedbackMessage">Сообщение</label>
+          <textarea id="feedbackMessage" class="menu-text-input feedback-textarea" rows="4" maxlength="2000"
+                    placeholder="Опишите проблему, предложение или вопрос…" required
+                    aria-describedby="feedbackMessageCounter feedbackMessageError"></textarea>
+          <div class="feedback-char-counter" id="feedbackMessageCounter">0 / 2000</div>
+          <span class="feedback-error" id="feedbackMessageError" role="alert"></span>
+        </div>
+
+        <div class="feedback-field">
+          <label class="settings-row-label" for="feedbackContact">Контакт (необязательно)</label>
+          <input id="feedbackContact" type="text" class="menu-text-input" maxlength="120" placeholder="Email или другой способ связи">
+          <span class="feedback-error" id="feedbackContactError" role="alert"></span>
+        </div>
+
+        <p class="settings-row-desc feedback-privacy-note">Не указывайте пароли и другую конфиденциальную информацию.</p>
+
+        <div class="feedback-error feedback-form-error" id="feedbackFormError" role="alert" hidden></div>
+
+        <div class="modal-actions">
+          <button type="submit" id="feedbackSubmitBtn" class="btn btn-accent">Отправить</button>
+          <button type="button" id="feedbackCancelBtn" class="btn btn-ghost">Отмена</button>
+        </div>
+      </div>
+
+      <div id="feedbackSuccess" class="feedback-success hidden">
+        <div class="feedback-success-icon">✓</div>
+        <div class="feedback-success-title">Спасибо!</div>
+        <p class="modal-sub">Сообщение успешно отправлено.</p>
+        <button type="button" id="feedbackSuccessCloseBtn" class="btn btn-accent">Закрыть</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================================
+     ПРАВАЯ БОКОВАЯ ПАНЕЛЬ (Side Panel) — единая система навигации приложения.
+     Открывается кнопкой ☰ (справа), выезжает СПРАВА НАЛЕВО.
+     Внутри — несколько "view" (#view-...), из которых виден только один —
+     переключение управляется navigationState в app.js (navigateTo/navigateBack).
+     ============================================================================ -->
+<div id="menuOverlay" class="settings-overlay">
+  <div id="menuBackdrop" class="settings-backdrop"></div>
+  <div class="settings-panel menu-panel">
+
+    <div class="settings-header menu-header">
+      <button id="menuBackBtn" class="settings-close-btn menu-back-btn" type="button" aria-label="Закрыть">✕</button>
+      <h2 id="sidePanelTitle" class="side-panel-title"></h2>
+    </div>
+
+    <div class="settings-body menu-body">
+
+      <!-- ===================== VIEW: ГЛАВНОЕ МЕНЮ ===================== -->
+      <div id="view-menu" class="side-view is-active">
+
+        <div id="menuProfileCard" class="menu-profile-card">
+          <div id="menuAvatar" class="menu-avatar">♟</div>
+          <div class="menu-profile-info">
+            <div id="menuProfileName" class="menu-profile-name">Гость</div>
+            <div id="menuProfileElo" class="menu-profile-elo hidden">1200 Elo</div>
+          </div>
+          <button id="menuAuthBtn" class="btn btn-accent btn-sm menu-auth-btn" type="button">Войти</button>
+        </div>
+
+        <nav class="menu-nav">
+          <button type="button" class="menu-nav-item" data-menu-action="profile">
+            <span class="menu-nav-icon">👤</span>
+            <span class="menu-nav-label">Профиль</span>
+            <span class="menu-nav-arrow">›</span>
+          </button>
+          <button type="button" class="menu-nav-item" data-menu-action="settings">
+            <span class="menu-nav-icon">⚙</span>
+            <span class="menu-nav-label">Настройки</span>
+            <span class="menu-nav-arrow">›</span>
+          </button>
+          <button type="button" class="menu-nav-item" data-menu-action="achievements">
+            <span class="menu-nav-icon">🏆</span>
+            <span class="menu-nav-label">Достижения</span>
+            <span class="menu-nav-arrow">›</span>
+          </button>
+          <button type="button" class="menu-nav-item" data-menu-action="stats">
+            <span class="menu-nav-icon">📊</span>
+            <span class="menu-nav-label">Статистика</span>
+            <span class="menu-nav-arrow">›</span>
+          </button>
+        </nav>
+
+        <div class="menu-divider"></div>
+
+        <button type="button" class="menu-nav-item" data-menu-action="about">
+          <span class="menu-nav-icon">ℹ</span>
+          <span class="menu-nav-label">О приложении</span>
+          <span class="menu-nav-arrow">›</span>
+        </button>
+
+      </div>
+
+      <!-- ===================== VIEW: ПРОФИЛЬ ===================== -->
+      <div id="view-profile" class="side-view">
+
+        <div class="menu-profile-big">
+          <div id="profileViewAvatar" class="menu-avatar menu-avatar-lg">♟</div>
+          <div id="profileViewName" class="menu-profile-big-name">Игрок</div>
+          <div id="profileViewElo" class="menu-profile-big-elo">1200 Elo</div>
+        </div>
+
+        <div id="profileViewGuest" class="menu-guest-box hidden">
+          <p class="modal-sub">Вы не авторизованы. Войдите, чтобы сохранять рейтинг и прогресс на этом устройстве.</p>
+          <button id="profileViewAuthBtn" class="btn btn-accent" type="button">Войти</button>
+        </div>
+
+        <div id="profileViewStats" class="menu-stats-list">
+          <div class="settings-row">
+            <span class="settings-row-label">Рейтинг</span>
+            <span id="profileStatElo">—</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Побед</span>
+            <span id="profileStatWins">—</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Проведено партий</span>
+            <span id="profileStatGames">—</span>
+          </div>
+        </div>
+
+        <div class="modal-actions menu-view-actions">
+          <button id="profileEditBtn" class="btn btn-accent" type="button">Редактировать профиль</button>
+          <button id="profileLogoutBtn" class="btn btn-ghost" type="button">Выйти из аккаунта</button>
+        </div>
+      </div>
+
+      <!-- ===================== VIEW: РЕДАКТИРОВАНИЕ ПРОФИЛЯ ===================== -->
+      <div id="view-profile-edit" class="side-view">
+
+        <div class="menu-field">
+          <span class="settings-row-label">Аватар</span>
+          <div id="profileAvatarPicker" class="avatar-choice-row">
+            <button type="button" class="avatar-choice-btn" data-avatar="♟">♟</button>
+            <button type="button" class="avatar-choice-btn" data-avatar="♞">♞</button>
+            <button type="button" class="avatar-choice-btn" data-avatar="♝">♝</button>
+            <button type="button" class="avatar-choice-btn" data-avatar="♜">♜</button>
+            <button type="button" class="avatar-choice-btn" data-avatar="♛">♛</button>
+            <button type="button" class="avatar-choice-btn" data-avatar="♚">♚</button>
+          </div>
+        </div>
+        <div class="menu-field">
+          <span class="settings-row-label">Имя / ник</span>
+          <input id="profileEditNameInput" type="text" class="menu-text-input" placeholder="Ваше имя" maxlength="24">
+        </div>
+
+        <div class="modal-actions menu-view-actions">
+          <button id="profileEditSaveBtn" class="btn btn-accent" type="button">Сохранить</button>
+          <button id="profileEditCancelBtn" class="btn btn-ghost" type="button">Отмена</button>
+        </div>
+      </div>
+
+      <!-- ===================== VIEW: НАСТРОЙКИ ===================== -->
+      <div id="view-settings" class="side-view">
+
+        <!-- Внешний вид -->
+        <div class="settings-group">
+          <div class="settings-group-title">Внешний вид</div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">Тема оформления</span>
+            <button id="settingsThemeToggle" class="theme-switch-btn" type="button">
+              <span id="settingsThemeIcon" class="theme-switch-icon">🌙</span>
+              <span id="settingsThemeLabel">Тёмная</span>
+            </button>
+          </div>
+
+          <div class="settings-row column">
+            <span class="settings-row-label">Акцентный цвет</span>
+            <div id="accentSwatches" class="accent-swatches">
+              <span class="accent-swatch accent-gold" data-accent="gold" title="Золотой"></span>
+              <span class="accent-swatch accent-maroon" data-accent="maroon" title="Бордовый"></span>
+              <span class="accent-swatch accent-blue" data-accent="blue" title="Синий"></span>
+              <span class="accent-swatch accent-green" data-accent="green" title="Зелёный"></span>
+            </div>
+          </div>
+
+          <div class="settings-row column">
+            <span class="settings-row-label">Оформление доски</span>
+            <div id="boardStyleRow" class="board-style-row">
+              <button type="button" class="board-style-btn" data-board-style="classic">Классическое (дерево)</button>
+              <button type="button" class="board-style-btn" data-board-style="mono">Минималистичное (монохром)</button>
+              <button type="button" class="board-style-btn" data-board-style="contrast">Контрастное (для слабовидящих)</button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Вражеские пешки на главном экране</div>
+              <div class="settings-row-desc">Падающие пешки, которых ловят кони вокруг кнопки «Играть»</div>
+            </div>
+            <label class="toggle-switch"><input id="homeEnemiesToggle" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <!-- Партия -->
+        <div class="settings-group">
+          <div class="settings-group-title">Партия</div>
+
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">Ограничить время</div>
+              <div class="settings-row-desc">Если выключено — партия без лимита</div>
+            </div>
+            <label class="toggle-switch"><input id="timeLimitedToggle" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div id="timeControlRow" class="settings-row column">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Время партии (мин)</span>
+              <span id="timeControlValue" class="slider-value">10</span>
+            </div>
+            <input id="timeControlSlider" class="settings-slider" type="range" min="1" max="60" step="1" value="10">
+          </div>
+
+          <div class="settings-row column">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Режим анализа</span>
+            </div>
+            <div id="analysisModeRow" class="board-style-row">
+              <button type="button" class="board-style-btn" data-analysis-mode="standard">Стандартный</button>
+              <button type="button" class="board-style-btn" data-analysis-mode="weak">Слабый ПК</button>
+            </div>
+            <div id="analysisModeDesc" class="settings-row-desc"></div>
+            <p id="analysisModeLockNote" class="settings-row-desc analysis-mode-lock-note hidden">Режим анализа можно изменить только до начала новой партии.</p>
+          </div>
+
+        <!-- Звук -->
+        <div class="settings-group">
+          <div class="settings-group-title">Звук</div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">Ходы</span>
+            <label class="toggle-switch"><input id="soundMoves" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Взятия</span>
+            <label class="toggle-switch"><input id="soundCaptures" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Шах</span>
+            <label class="toggle-switch"><input id="soundCheck" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Мат</span>
+            <label class="toggle-switch"><input id="soundMate" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Интерфейс</span>
+            <label class="toggle-switch"><input id="soundUi" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row column">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Громкость</span>
+              <span id="volumeValue" class="slider-value">80</span>
+            </div>
+            <input id="volumeSlider" class="settings-slider" type="range" min="0" max="100" step="1" value="80">
+          </div>
+        </div>
+
+        <!-- ИИ -->
+        <div class="settings-group">
+          <div class="settings-group-title">Искусственный интеллект</div>
+
+          <div class="settings-row column">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Креативность ответов</span>
+              <span id="temperatureValue" class="slider-value">6</span>
+            </div>
+            <input id="temperatureSlider" class="settings-slider" type="range" min="0" max="10" step="1" value="6">
+          </div>
+
+          <div class="settings-row">
+            <span class="settings-row-label">Длина ответа</span>
+            <select id="responseLengthSelect" class="settings-select">
+              <option value="short">Короткий</option>
+              <option value="medium" selected>Средний</option>
+              <option value="long">Подробный</option>
+            </select>
+          </div>
+
+          <div id="autoHintRow" class="settings-row">
+            <div>
+              <div class="settings-row-label">Автоматические подсказки</div>
+              <div class="settings-row-desc">ИИ предложит совет, если игрок долго думает</div>
+            </div>
+            <label class="toggle-switch"><input id="autoHintToggle" type="checkbox"><span class="toggle-slider"></span></label>
+          </div>
+          <p id="autoHintCharacterNote" class="settings-row-desc hidden" style="margin:-4px 0 4px;">В режиме «Против персонажей» подсказки недоступны — соперник не помогает вам во время партии.</p>
+
+          <div id="autoHintDelayRow" class="settings-row column hidden">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Задержка подсказки, сек</span>
+              <span id="autoHintDelayValue" class="slider-value">20</span>
+            </div>
+            <input id="autoHintDelaySlider" class="settings-slider" type="range" min="5" max="60" step="5" value="20">
+          </div>
+        </div>
+
+        <!-- Производительность -->
+        <div class="settings-group">
+          <div class="settings-group-title">Производительность</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Аппаратное ускорение</span>
+            <label class="toggle-switch"><input id="perfHardware" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Высокий FPS</span>
+            <label class="toggle-switch"><input id="perfHighFps" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Плавные анимации</span>
+            <label class="toggle-switch"><input id="perfSmoothAnim" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Эффекты свечения</span>
+            <label class="toggle-switch"><input id="perfGlow" type="checkbox" checked><span class="toggle-slider"></span></label>
+          </div>
+        </div>
+
+        <!-- О программе -->
+        <div class="settings-group">
+          <div class="settings-group-title">О программе</div>
+          <div class="settings-about">
+            Версия Stockfish: <b>18 lite (single-thread)</b><br>
+            Модель ИИ: <b>deepseek/deepseek_v4_pro</b><br>
+            <a href="#" id="aboutLicensesLink">Лицензии</a> · <a href="https://github.com/leavRud/leaveRud.github.io/" target="_blank" rel="noopener">GitHub</a>
+          </div>
+        </div>
+
+      </div>
+      </div>
+      <!-- ^ вторая закрывающая div — закрывает #view-settings (раньше
+           этот div не был закрыт, и #view-achievements/#view-stats/
+           #view-about оказывались вложены внутрь settings — из-за
+           этого переключение .is-active между view верхнего уровня в
+           renderSideView() работало некорректно для этих разделов). -->
+
+      <!-- ===================== VIEW: ДОСТИЖЕНИЯ ===================== -->
+      <div id="view-achievements" class="side-view">
+        <div class="menu-achv-summary">
+          <div id="achievementsViewSummary" class="menu-achv-summary-count">0 / 0</div>
+          <div class="settings-row-desc">открыто достижений</div>
+          <div class="menu-achv-bar-track">
+            <div id="achievementsViewBar" class="menu-achv-bar-fill" style="width:0%"></div>
+          </div>
+        </div>
+        <div id="achievementsGridContainer" class="achv-grid-container"></div>
+      </div>
+
+      <!-- ===================== VIEW: СТАТИСТИКА ===================== -->
+      <div id="view-stats" class="side-view">
+
+        <div class="menu-stats-hero" id="statsEloHero" role="button" tabindex="0"
+             aria-expanded="false" aria-controls="statsEloChartWrap">
+          <div id="statsViewElo" class="menu-stats-hero-value">—</div>
+          <div class="menu-stats-hero-label">ELO</div>
+        </div>
+
+        <div class="stats-elo-chart-wrap" id="statsEloChartWrap" aria-hidden="true">
+          <div class="stats-elo-chart-inner" id="statsEloChartInner"></div>
+        </div>
+
+        <div id="statsViewBody" class="menu-stats-list">
+          <p class="modal-sub">Пока нет данных — сыграйте партию, чтобы увидеть статистику.</p>
+        </div>
+      </div>
+
+      <!-- ===================== VIEW: О ПРИЛОЖЕНИИ ===================== -->
+      <div id="view-about" class="side-view">
+        <div class="about-hero">
+          <div class="about-hero-icon">♞</div>
+          <div class="about-hero-name">chessai</div>
+          <div class="about-hero-tagline">Шахматы с характером</div>
+          <div class="about-hero-version" id="aboutHeroVersion">v1.0.0</div>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Что такое chessai</div>
+          <p class="about-section-text">Игра против Stockfish и против персонажей с собственным характером, разбор партий, статистика, рейтинг Elo и достижения.</p>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Возможности</div>
+          <div class="about-feature-grid">
+            <div class="about-feature"><span class="about-feature-icon">♟</span><span>Против Stockfish</span></div>
+            <div class="about-feature"><span class="about-feature-icon">🎭</span><span>Против персонажей</span></div>
+            <div class="about-feature"><span class="about-feature-icon">👥</span><span>На одном ПК</span></div>
+            <div class="about-feature"><span class="about-feature-icon">🔍</span><span>Анализ партий</span></div>
+            <div class="about-feature"><span class="about-feature-icon">📊</span><span>Статистика и Elo</span></div>
+            <div class="about-feature"><span class="about-feature-icon">🏆</span><span>Достижения</span></div>
+            <div class="about-feature"><span class="about-feature-icon">🎨</span><span>Настройки внешнего вида</span></div>
+            <div class="about-feature"><span class="about-feature-icon">🔊</span><span>Звуки и интерфейс</span></div>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Как работает ИИ</div>
+          <div class="settings-row about-ai-row">
+            <span class="settings-row-label">Stockfish</span>
+            <span class="about-ai-desc">Анализ позиций и поиск ходов</span>
+          </div>
+          <div class="settings-row about-ai-row">
+            <span class="settings-row-label">Нейросеть</span>
+            <span class="about-ai-desc">Диалог, комментарии, характер персонажей</span>
+          </div>
+          <div class="settings-row-desc">Анализ партий использует общий кэш и фоновое доуглубление Stockfish.</div>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Технологии</div>
+          <div class="about-tech-tags">
+            <span class="about-tech-tag">Stockfish</span>
+            <span class="about-tech-tag">chess.js</span>
+            <span class="about-tech-tag">chessboard.js</span>
+            <span class="about-tech-tag">Supabase</span>
+            <span class="about-tech-tag">Provod.ai</span>
+            <span class="about-tech-tag">JS / HTML / CSS</span>
+          </div>
+        </div>
+
+        <div class="about-section">
+          <a href="#" id="aboutLicensesLinkMenu" class="about-link-row">
+            <span>Открытые лицензии и сторонние компоненты</span>
+            <span class="about-link-arrow">›</span>
+          </a>
+          <a href="https://github.com/leavRud/leaveRud.github.io/" target="_blank" rel="noopener" class="about-link-row">
+            <span>GitHub</span>
+            <span class="about-link-arrow">↗</span>
+          </a>
+        </div>
+
+        <div class="about-section">
+          <div class="about-section-title">Разработчик</div>
+          <div class="about-dev-name">Максим Чебаков</div>
+          <div class="about-dev-sub">Создано для любителей шахмат и экспериментов с ИИ</div>
+        </div>
+
+        <button type="button" id="aboutFeedbackBtn" class="btn menu-view-actions">Обратная связь</button>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ МОДАЛКА: ВХОД (мок-авторизация, локально) ============
+     Короткое самостоятельное действие — по правилам архитектуры остаётся
+     обычной центральной модалкой (см. п.17 ТЗ), а не view в боковой панели.
+     Оформлена в тёплом тёмном стекле — как боковая панель настроек/меню. -->
+<div id="authModal" class="modal-overlay achv-modal-overlay hidden">
+  <div class="modal achv-modal auth-modal">
+    <div class="achv-modal-header auth-modal-header">
+      <h2 id="authModalTitle">Вход в аккаунт</h2>
+      <button id="authCloseBtn" class="settings-close-btn" type="button" aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="auth-tabs" role="tablist">
+      <button id="authTabLogin" class="auth-tab is-active" type="button" role="tab" aria-selected="true">Вход</button>
+      <button id="authTabRegister" class="auth-tab" type="button" role="tab" aria-selected="false">Регистрация</button>
+    </div>
+
+    <div class="auth-provider-col">
+      <button id="authGoogleBtn" class="auth-provider-btn" type="button">
+        <span class="auth-provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.3-1.72 3.8-5.5 3.8-3.31 0-6.02-2.74-6.02-6.1S8.69 5.7 12 5.7c1.89 0 3.16.8 3.88 1.49l2.64-2.55C16.9 3.03 14.66 2 12 2 6.98 2 2.9 6.03 2.9 11s4.08 9 9.1 9c5.25 0 8.74-3.69 8.74-8.89 0-.6-.07-1.05-.15-1.5H12Z"/>
+          </svg>
+        </span>
+        Войти через Google
+      </button>
+      <button id="authVkBtn" class="auth-provider-btn auth-provider-vk" type="button">
+        <span class="auth-provider-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#fff" d="M13.16 17.3c-5.87 0-9.22-4.03-9.36-10.73h2.9c.1 4.96 2.3 7.06 4.03 7.5V6.57h2.73v4.24c1.72-.19 3.51-2.13 4.12-4.24h2.72c-.47 2.6-2.4 4.55-3.77 5.34 1.37.64 3.56 2.34 4.4 5.39h-3c-.65-2-2.3-3.55-4.47-3.77v3.77h-.3Z"/>
+          </svg>
+        </span>
+        Войти через VK
+      </button>
+    </div>
+
+    <div class="auth-divider"><span>или по почте</span></div>
+
+    <!-- Форма входа -->
+    <form id="authLoginForm" class="auth-form" novalidate>
+      <div class="auth-field">
+        <span class="settings-row-label">Email</span>
+        <input id="authLoginEmail" type="email" class="menu-text-input" placeholder="you@example.com" autocomplete="email" required>
+        <span class="auth-field-error" id="authLoginEmailError"></span>
+      </div>
+      <div class="auth-field">
+        <span class="settings-row-label">Пароль</span>
+        <div class="auth-password-wrap">
+          <input id="authLoginPassword" type="password" class="menu-text-input" placeholder="••••••••" autocomplete="current-password" required>
+          <button type="button" class="auth-password-toggle" data-target="authLoginPassword" aria-label="Показать пароль">👁</button>
+        </div>
+        <span class="auth-field-error" id="authLoginPasswordError"></span>
+      </div>
+      <button type="button" id="authForgotBtn" class="auth-link-btn">Забыли пароль?</button>
+      <div class="modal-actions">
+        <button id="authLoginSubmitBtn" class="btn btn-accent" type="submit">Войти</button>
+        <button id="authLoginCancelBtn" class="btn btn-ghost" type="button">Отмена</button>
+      </div>
+    </form>
+
+    <!-- Форма регистрации -->
+    <form id="authRegisterForm" class="auth-form hidden" novalidate>
+      <div class="auth-field">
+        <span class="settings-row-label">Ваше имя</span>
+        <input id="authRegisterName" type="text" class="menu-text-input" placeholder="Например: Александр" maxlength="24" autocomplete="nickname" required>
+        <span class="auth-field-error" id="authRegisterNameError"></span>
+      </div>
+      <div class="auth-field">
+        <span class="settings-row-label">Email</span>
+        <input id="authRegisterEmail" type="email" class="menu-text-input" placeholder="you@example.com" autocomplete="email" required>
+        <span class="auth-field-error" id="authRegisterEmailError"></span>
+      </div>
+      <div class="auth-field">
+        <span class="settings-row-label">Пароль</span>
+        <div class="auth-password-wrap">
+          <input id="authRegisterPassword" type="password" class="menu-text-input" placeholder="Минимум 8 символов" autocomplete="new-password" required minlength="8">
+          <button type="button" class="auth-password-toggle" data-target="authRegisterPassword" aria-label="Показать пароль">👁</button>
+        </div>
+        <div class="auth-password-strength" id="authPasswordStrength"><span></span></div>
+        <span class="auth-field-error" id="authRegisterPasswordError"></span>
+      </div>
+      <div class="auth-field">
+        <span class="settings-row-label">Повторите пароль</span>
+        <div class="auth-password-wrap">
+          <input id="authRegisterPassword2" type="password" class="menu-text-input" placeholder="••••••••" autocomplete="new-password" required minlength="8">
+          <button type="button" class="auth-password-toggle" data-target="authRegisterPassword2" aria-label="Показать пароль">👁</button>
+        </div>
+        <span class="auth-field-error" id="authRegisterPassword2Error"></span>
+      </div>
+      <div class="modal-actions">
+        <button id="authRegisterSubmitBtn" class="btn btn-accent" type="submit">Создать аккаунт</button>
+        <button id="authRegisterCancelBtn" class="btn btn-ghost" type="button">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- jQuery (нужен для chessboard.js) -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"
+  integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
+  crossorigin="anonymous"></script>
+
+<!-- chess.js — правила игры -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+<!-- chessboard.js — визуальная доска -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+<!-- Stockfish (лёгкая версия) -->
+<script src="stockfish/stockfish-18-lite-single.js"></script>
+
+<!-- Основной скрипт приложения -->
+<script src="achievements.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+
+<!-- Toast-уведомление -->
+<div id="toast" class="toast hidden"></div>
+</body>
+</html>

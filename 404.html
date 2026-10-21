@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Turvid</title>
+    <script>
+      // Тема до первой отрисовки, чтобы страница не мигала светлой (то же делает src/ui/theme.ts).
+      try {
+        var t = localStorage.getItem('turvid-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="/assets/index-CHv30Iwe.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-qXAc03GL.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
