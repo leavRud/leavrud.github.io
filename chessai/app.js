@@ -241,11 +241,99 @@ function renderChatQuota(quota) {
   }
   if (!quota) { el.textContent = ''; return; }
   const left = Math.max(0, quota.daily_limit - quota.daily_used);
-  const bonus = Math.floor(Number(quota.bonus_left) || 0);
+  const extra = Math.floor(Number(quota.bonus_left) || 0);
   let text = `Осталось ${left} из ${quota.daily_limit} вопросов на сегодня`;
-  if (bonus > 0) text += ` · ещё ${bonus} бонусных`;
-  el.textContent = text;
-  el.classList.toggle('is-empty', left === 0 && bonus === 0);
+  if (extra > 0) text += ` · ещё ${extra} в запасе`;
+  el.textContent = text + ' ';
+  const buy = document.createElement('button');
+  buy.type = 'button';
+  buy.className = 'chat-quota-buy';
+  buy.textContent = 'Купить вопросы';
+  el.appendChild(buy);
+  el.classList.toggle('is-empty', left === 0 && extra === 0);
+}
+
+/* ---- Покупка пакетов вопросов (supabase/functions/payments) ---- */
+let buyPack = 'q100';
+
+function selectBuyPack(packId) {
+  buyPack = packId;
+  let price = '';
+  document.querySelectorAll('.buy-pack').forEach(btn => {
+    const active = btn.dataset.pack === packId;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-checked', String(active));
+    if (active) price = btn.dataset.price;
+  });
+  $id('buyPayBtn').textContent = `Оплатить ${price} ₽`;
+}
+
+// Покупка только после входа: вопросы зачисляются на аккаунт.
+function openBuyModal(packId = buyPack) {
+  if (!chatSignedIn) {
+    try { sessionStorage.setItem('chessPendingBuy', packId); } catch (e) { /* без хранилища просто не откроем после входа */ }
+    showToast('Войдите, чтобы купить вопросы: они зачисляются на аккаунт');
+    openAuthModal();
+    return;
+  }
+  $id('buyError').classList.add('hidden');
+  $id('buyPayBtn').disabled = false;
+  selectBuyPack(packId === 'q300' ? 'q300' : 'q100');
+  showModal('buyModal');
+}
+
+async function startPayment() {
+  const btn = $id('buyPayBtn');
+  const errorEl = $id('buyError');
+  btn.disabled = true;
+  btn.textContent = 'Переходим к оплате…';
+  errorEl.classList.add('hidden');
+  const { data, error } = await sb.functions.invoke('payments/create', { body: { pack_id: buyPack } });
+  if (!error && data?.confirmation_url) {
+    window.location.href = data.confirmation_url;
+    return;
+  }
+  let code = null;
+  try { code = (await error?.context?.json())?.error ?? null; } catch (e) { /* тело ответа не JSON */ }
+  errorEl.textContent = code === 'PAYMENTS_NOT_CONFIGURED'
+    ? 'Оплата подключается и скоро заработает. Пока можно пользоваться бесплатными вопросами.'
+    : code === 'AUTH_REQUIRED'
+      ? 'Сессия истекла — войдите заново.'
+      : 'Не удалось перейти к оплате. Попробуйте ещё раз через минуту.';
+  errorEl.classList.remove('hidden');
+  btn.disabled = false;
+  selectBuyPack(buyPack);
+}
+
+document.querySelectorAll('.buy-pack').forEach(btn => {
+  btn.addEventListener('click', () => { playSound('ui'); selectBuyPack(btn.dataset.pack); });
+});
+$id('buyPayBtn').addEventListener('click', () => { playSound('ui'); startPayment(); });
+$id('buyCancelBtn').addEventListener('click', () => hideModal('buyModal'));
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.chat-quota-buy')) openBuyModal();
+});
+
+// Ссылки «Купить» со страницы тарифов (?buy=q100) и возврат с оплаты (?paid=1).
+function handlePaymentParams() {
+  const params = new URLSearchParams(location.search);
+  const buy = params.get('buy');
+  const paid = params.get('paid');
+  if (!buy && !paid) return;
+  history.replaceState(null, '', location.pathname);
+  if (paid) {
+    showToast('Спасибо за оплату! Вопросы начислятся в течение минуты');
+    setTimeout(refreshChatQuota, 5000);
+  }
+  if (buy) openBuyModal(buy);
+}
+
+// Гость нажал «Купить» → вошёл → открываем покупку того же пакета.
+function resumePendingBuy() {
+  if (!chatSignedIn) return;
+  let pending = null;
+  try { pending = sessionStorage.getItem('chessPendingBuy'); sessionStorage.removeItem('chessPendingBuy'); } catch (e) { /* нет хранилища */ }
+  if (pending) openBuyModal(pending);
 }
 
 async function refreshChatQuota() {
@@ -267,7 +355,7 @@ function chatErrorMessage(error) {
     case 'AUTH_REQUIRED':
       return 'Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 15 вопросов в день.';
     case 'DAILY_LIMIT_REACHED':
-      return 'Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве, а бонусные вопросы даются за достижения.';
+      return 'Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве. Можно купить пакет вопросов — кнопка «Купить вопросы» под чатом, а бонусные вопросы даются за достижения.';
     case 'GAME_LIMIT_REACHED':
       return 'Персонажи на сегодня устали: дневной лимит игровых запросов исчерпан. Попробуйте завтра.';
     case 'REQUEST_TOO_LONG':
@@ -4264,7 +4352,7 @@ async function initSupabaseSession() {
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
   }
-  refreshChatQuota();
+  refreshChatQuota().then(() => { handlePaymentParams(); resumePendingBuy(); });
 
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
@@ -4272,7 +4360,8 @@ async function initSupabaseSession() {
     } else if (event === 'SIGNED_OUT') {
       clearAccount();
     }
-    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') refreshChatQuota();
+    if (event === 'SIGNED_IN') refreshChatQuota().then(resumePendingBuy);
+    if (event === 'SIGNED_OUT') refreshChatQuota();
     renderMenuProfile();
     if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();
   });
