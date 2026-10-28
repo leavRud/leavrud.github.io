@@ -62,8 +62,8 @@ html.dark {
   --danger: #cc5555;
   --danger-dark: #e06666;
 
-  --board-light: #3a3a3a;
-  --board-dark: #2a2a2a;
+  --board-light: #5a5248;
+  --board-dark: #36302a;
 
   --home-cell-a: #1a1a1a;
   --home-cell-b: #222222;
@@ -92,7 +92,7 @@ html.dark[data-accent="green"]  { --accent: #5fbf85; --gold: #5fbf85; --achv-mod
 :root[data-board-style="classic"] { --board-light: #F0E7D8; --board-dark: #9C7B54; }
 :root[data-board-style="mono"]    { --board-light: #E9E9E9; --board-dark: #8A8A8A; }
 :root[data-board-style="contrast"]{ --board-light: #FFFFFF; --board-dark: #1A1A1A; }
-html.dark[data-board-style="classic"] { --board-light: #3a3a3a; --board-dark: #2a2a2a; }
+html.dark[data-board-style="classic"] { --board-light: #5a5248; --board-dark: #36302a; }
 html.dark[data-board-style="mono"]    { --board-light: #4a4a4a; --board-dark: #232323; }
 html.dark[data-board-style="contrast"]{ --board-light: #FFFFFF; --board-dark: #000000; }
 
@@ -975,7 +975,7 @@ textarea, input {
 
 .loading-knight {
   position: relative;
-  width: 148px;
+  width: 78px;
   height: auto;
   object-fit: contain;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
@@ -1241,7 +1241,6 @@ textarea, input {
 .knight-head {
   position: absolute;
   top: 30%;
-  left: 10%;
   width: 120%;
   height: 230%;               /* реальная высота коня в 2 раза больше окна */
   object-fit: cover;
@@ -1279,7 +1278,7 @@ textarea, input {
   font-weight: 600;
   font-size: 45px;
   letter-spacing: 0.25em;
-  color: rgb(242, 238, 232);
+  color: var(--text);
   cursor: pointer;
   user-select: none;
   transition: color 0.25s, text-shadow 0.25s;
@@ -1343,7 +1342,8 @@ textarea, input {
 .settings-icon-btn:active { transform: scale(0.92); }
 
 .home-topbar .settings-icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
-.home-topbar .settings-icon-btn svg { fill: #F4EFE4; }
+.home-topbar .settings-icon-btn svg { fill: var(--text); }
+html:not(.dark) .home-topbar .settings-icon-btn:hover { background: rgba(0, 0, 0, 0.06); }
 
 .topbar .settings-icon-btn { box-shadow: none; }
 .topbar .settings-icon-btn:hover { box-shadow: var(--sd-sm); }
@@ -1641,8 +1641,14 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
   .modal.wide .modal-actions { flex-direction: column; }
   .modal.wide .modal-actions .btn { width: 100%; }
   .color-choice-row, .diff-choice-row { flex-wrap: wrap; }
+}
 
-  /* Капсула на мобильных */
+/* Капсула на главном экране: в узком варианте (планшеты и мобильные) конь
+   и переключатель режимов переезжают под кнопку "Играть". Порог поднят до
+   880px — при min-width:780px у .home-oval это единственный способ не
+   получить горизонтальное переполнение на портретных планшетах (iPad и т.п.,
+   ширина 721–866px), где обычный десктопный вид ещё не помещается. */
+@media (max-width: 880px) {
   .home-oval {
     padding: 20px 24px;
     flex-direction: column;
@@ -1651,8 +1657,9 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
     border-radius: 80px;
     justify-content: center;
     min-width: unset;
-    width: 90vw;
-    overflow: visible;   /* убираем обрезку, чтобы конь не мешал */
+    width: 90%;          /* % от контейнера, а не от вьюпорта — паддинг .home-center уже учтён, переполнения не будет */
+    max-width: 480px;
+    overflow: visible;   /* обрезаем не саму капсулу, а только коня (см. .home-knight-wrap ниже) */
   }
   .home-knight-wrap {
     position: relative;
@@ -1661,6 +1668,8 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
     width: 80px;
     height: 100px;
     margin-bottom: -10px;
+    overflow: hidden;     /* конь — картинка выше своей рамки (height:230%), без обрезки он наезжает на "ИГРАТЬ" и режимы ниже */
+    border-radius: 24px;
   }
   .mode-icon-wrap {
     bottom: 6px;
@@ -1685,6 +1694,19 @@ html.dark .settings-panel { background: rgba(10, 10, 10, 0.78); }
   .home-oval::after {
     display: none;   /* на малых экранах отблески убираем */
   }
+}
+
+/* Короткие/альбомные экраны (мобильные в landscape, невысокие окна браузера) —
+   .home-screen зафиксирован и не скроллится, поэтому на маленькой высоте
+   капсула должна сжаться и прижаться кверху, а не обрезаться. */
+@media (max-height: 560px) {
+  .home-screen { overflow-y: auto; }
+  .home-topbar { padding: 12px 20px; }
+  .home-center { padding: 6px 20px 20px; justify-content: flex-start; }
+  .home-oval { padding: 14px 20px; gap: 8px; }
+  .home-knight-wrap { width: 56px; height: 64px; margin-bottom: -6px; overflow: hidden; }
+  .home-play-text { font-size: 26px; margin-top: -4px; }
+  .home-mode-btn { padding: 5px 10px; }
 }
 
 /* =========================================================================
@@ -1939,7 +1961,7 @@ html.dark .achv-modal-overlay {
 
 .achv-modal-overlay .achv-modal {
   max-width: 880px;
-  width: 92vw;
+  width: min(92vw, calc(100vw - 40px));
   height: 84vh;
   display: flex;
   flex-direction: column;
@@ -2116,7 +2138,7 @@ html.dark .achv-modal-overlay .achv-modal {
 /* Малые модалки бургер-меню (вход / профиль / достижения / статистика / о приложении) */
 .achv-modal-overlay .achv-modal.menu-small-modal {
   max-width: 420px;
-  width: 92vw;
+  width: min(92vw, calc(100vw - 40px));
   height: auto;
   max-height: 86vh;
   padding: 30px 26px;
@@ -2350,7 +2372,7 @@ html.dark .achv-modal-overlay .achv-modal {
 .achv-modal-overlay .achv-modal.auth-modal {
   max-width: 420px;
   border-radius: var(--radius-md);
-  width: 92vw;
+  width: min(92vw, calc(100vw - 40px));
   height: auto;
   max-height: 90vh;
   padding: 30px 26px;
@@ -2588,3 +2610,284 @@ html.dark .achv-modal-overlay .achv-modal {
   transition: transform 0.15s ease-out, opacity 0.2s ease;
   will-change: transform, opacity;
 }
+
+/* =========================================================================
+   АДАПТИВНОСТЬ — ДОПОЛНИТЕЛЬНЫЕ ИСПРАВЛЕНИЯ ДЛЯ ВСЕГО ПРИЛОЖЕНИЯ
+   Идут последними в каскаде намеренно: панель ".panel-expanded" и сетка
+   достижений выше в файле заданы через два класса (специфичность 0,2,0),
+   поэтому переопределять их для мобильных нужно селектором той же
+   специфичности, но позже по тексту файла — иначе брейкпоинт проигрывает.
+   ========================================================================= */
+
+/* Разворачивающаяся при "Достижениях" боковая панель на десктопе шире обычной
+   (см. .settings-panel.panel-expanded выше, min-width: 600px) — на планшетах
+   и телефонах такая ширина шире самого экрана и ломает layout. */
+@media (max-width: 900px) {
+  .settings-panel.panel-expanded {
+    width: min(100vw, 480px);
+    min-width: unset;
+    max-width: unset;
+  }
+}
+
+/* Сетка карточек достижений — двумя колонками только там, где для них
+   реально есть место; на телефонах одна колонка читается заметно лучше. */
+@media (max-width: 480px) {
+  .achv-grid-container { grid-template-columns: 1fr; }
+  .about-feature-grid { grid-template-columns: 1fr; }
+}
+
+/* Самые узкие телефоны (320–400px): плотнее отступы у доски и модалок,
+   перенос текста в строке статуса партии и баннере переподключения,
+   уже колонки в строках характеристик персонажа, чтобы бегунок не схлопывался. */
+@media (max-width: 400px) {
+  .app { padding: 12px 8px 32px; }
+  .board-frame { padding: 10px; }
+  .board-card, .chat-card { padding: 12px; }
+  .modal { padding: 24px 18px; }
+
+  .status-row { flex-wrap: wrap; row-gap: 8px; }
+  .connection-banner { flex-wrap: wrap; }
+  .connection-banner .btn { width: 100%; }
+
+  .char-bar-row { grid-template-columns: 74px 1fr 56px; gap: 6px; }
+  .char-bar-label { font-size: 12px; }
+}
+
+/* Короткая высота панели (мобильный landscape) — внутренние списки должны
+   скроллиться, а не обрезаться фиксированной высотой панели. */
+@media (max-height: 480px) {
+  .achv-modal-overlay .achv-modal { height: 94vh; }
+  .settings-header, .achv-modal-header { padding-top: 14px; padding-bottom: 14px; }
+}
+
+/* Подстраховка от горизонтального скролла всей страницы. */
+html, body { overflow-x: hidden; }
+/* =========================================================================
+   ОКНО С ДОСКОЙ: контрастная доска, строки игроков, вкладки на телефоне
+   ========================================================================= */
+.board-card { padding: 20px; gap: 12px; }
+.board-frame { padding: 10px; }
+/* Доска не выше экрана: на ноутбуке 1366×768 вся карточка и поле чата
+   помещаются без прокрутки. */
+#board { width: min(480px, 100%, calc(100vh - 340px)); min-width: 240px; }
+
+/* Невысокие экраны ноутбуков: поджимаем отступы над доской */
+@media (min-width: 981px) and (max-height: 860px) {
+  .app { padding-top: 14px; }
+  .topbar { margin-bottom: 14px; }
+}
+
+/* Координаты: без прозрачности и контрастные к своей клетке */
+.notation-322f9 { opacity: 1; font-size: 11px !important; }
+.white-1e1d7 .notation-322f9 { color: rgba(40, 30, 22, 0.8) !important; }
+.black-3c85d .notation-322f9 { color: rgba(250, 244, 233, 0.85) !important; }
+html.dark .white-1e1d7 .notation-322f9 { color: rgba(250, 244, 233, 0.85) !important; }
+html.dark[data-board-style="contrast"] .white-1e1d7 .notation-322f9 { color: rgba(0, 0, 0, 0.8) !important; }
+
+/* Последний ход остаётся подсвеченным до следующего */
+.square-55d63.last-move-mark { background-image: linear-gradient(var(--gold-soft), var(--gold-soft)); }
+
+.player-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  min-height: 44px;
+}
+.pb-avatar {
+  width: 34px; height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--bg-alt);
+  box-shadow: var(--inset-sm);
+  font-size: 20px;
+  line-height: 1;
+}
+.player-bar.is-turn .pb-avatar { background: var(--accent); color: var(--bg); box-shadow: none; }
+.pb-info { min-width: 0; display: grid; gap: 1px; }
+.pb-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-turn {
+  display: none;
+  margin-left: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.player-bar.is-turn .pb-turn { display: inline; }
+.pb-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-material {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+.pb-material .captured-pieces { font-size: 17px; letter-spacing: -2px; min-height: 0; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.pb-advantage { font-size: 12px; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.player-bar .timer {
+  margin-left: auto;
+  flex: none;
+  min-width: 72px;
+  text-align: center;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font: 600 17px/1.2 var(--font-body);
+  font-variant-numeric: tabular-nums;
+  opacity: 1;
+  color: var(--text-muted);
+}
+.player-bar.is-turn .timer { background: var(--accent); color: #FBF7EF; box-shadow: none; }
+html.dark .player-bar.is-turn .timer { color: #1a1408; }
+.player-bar .timer.warning { background: var(--danger); color: #fff; }
+
+/* Статус партии и кнопки — одной строкой под доской */
+.game-actions { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
+.game-actions .status-row { flex: 1 1 160px; padding: 0 6px; min-height: 22px; justify-content: flex-start; }
+.game-actions .controls-row { flex: none; gap: 8px; }
+.game-actions .controls-row .btn { flex: none; }
+.status-text { font-size: 13px; color: var(--text-muted); }
+
+/* Ходы — одной строкой с переносом, как в нотации на бумаге */
+.move-list-wrap { max-height: 76px; padding: 8px 10px; flex: none; margin-bottom: 14px; }
+.move-list { flex-direction: row; flex-wrap: wrap; gap: 2px 4px; }
+.move-row {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.move-row:nth-child(odd) { background: transparent; }
+.move-row span:empty { display: none; }
+.move-row:last-child { background: var(--accent-soft); color: var(--accent); }
+.move-list:empty::before { content: "Ходов пока нет"; color: var(--text-muted); font-size: 13px; }
+
+/* Чат на компьютере — высотой ровно с колонку доски, поле ввода всегда видно */
+@media (min-width: 981px) {
+  .layout { align-items: stretch; }
+  .chat-card { contain: size; height: auto; min-height: 460px; max-height: none; }
+}
+
+.chat-quota { font-size: 12px; color: var(--text-muted); margin: -6px 2px 10px; min-height: 16px; }
+.chat-quota.is-empty { color: var(--danger); }
+.chat-quota-login {
+  font: inherit;
+  font-weight: 700;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.mobile-tabs { display: none; }
+
+@media (max-width: 980px) {
+  /* minmax(0, 1fr) вместо 1fr: колонка может стать уже доски, и доска
+     сжимается под экран при повороте телефона. */
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #board { width: min(480px, 100%); }
+
+  .mobile-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-alt);
+    box-shadow: var(--inset-sm);
+  }
+  .mobile-tab {
+    flex: 1;
+    position: relative;
+    font: inherit;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 9px 0;
+    border-radius: 9px;
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--text-muted);
+  }
+  .mobile-tab.is-active { background: var(--accent-soft); color: var(--accent); }
+  .mobile-tab.has-unread::after {
+    content: "";
+    position: absolute;
+    top: 8px; right: calc(50% - 46px);
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .layout[data-mobile-tab="chat"] .move-list-wrap { display: none; }
+  .layout[data-mobile-tab="moves"] .chat-card > :not(.move-list-wrap) { display: none; }
+  .layout[data-mobile-tab="moves"] .move-list-wrap { max-height: 40vh; margin-bottom: 0; }
+  .game-actions .controls-row { flex: 1 1 100%; }
+  .game-actions .controls-row .btn { flex: 1 1 0; }
+
+  .chat-card { min-height: 0; }
+  .chat-log { max-height: 55vh; min-height: 160px; }
+  .chat-input-row {
+    position: sticky;
+    bottom: 0;
+    padding: 10px 0 calc(4px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg);
+    z-index: 2;
+  }
+}
+
+/* =========================================================================
+   МОДАЛКИ: заметный выбор и читаемые кнопки
+   ========================================================================= */
+/* Тёмный текст на золотых кнопках тёмной темы (белый давал 2:1) */
+html.dark .btn-accent,
+html.dark .btn-primary.btn-primary-active { color: #1a1408; }
+
+.color-choice-btn.is-active, .diff-choice-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.color-choice-btn.is-active[data-color="w"],
+.color-choice-btn.is-active[data-color="b"],
+.diff-easy.is-active, .diff-medium.is-active, .diff-hard.is-active { border-color: var(--accent); }
+.choice-check { display: none; color: var(--accent); font-weight: 800; }
+.color-choice-btn.is-active .choice-check { display: inline; }
+.color-choice-black { background: #141210; border-color: var(--text-muted); }
+
+.diff-choice-btn { flex-direction: column; gap: 2px; }
+.diff-choice-name { display: inline-flex; align-items: center; gap: 6px; }
+.diff-elo { font-size: 11.5px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.diff-choice-btn.is-active .diff-elo { color: var(--accent); }
+
+/* Итог партии */
+.result-eyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.result-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 22px; }
+.result-stat {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  box-shadow: var(--inset-sm);
+}
+.result-stat b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.result-stat span { font-size: 12px; color: var(--text-muted); }
+.modal.wide .result-actions { flex-wrap: wrap; }
+.modal.wide .result-actions #requestAnalysisBtn { flex: 1 1 100%; }
+.modal.wide .result-actions .btn-ghost { flex: 1 1 0; }

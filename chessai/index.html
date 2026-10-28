@@ -105,23 +105,53 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main class="layout" data-mobile-tab="moves">
 
     <!-- ============ ДОСКА ============ -->
     <section class="board-card neumorphic-raised">
+
+      <!-- Строки игроков: сверху соперник, снизу тот, кто смотрит на доску.
+           Таймеры и взятые фигуры переставляются между строками в renderPlayerBars(). -->
+      <div id="playerBarTop" class="player-bar" data-side="b">
+        <span class="pb-avatar" aria-hidden="true">♚</span>
+        <div class="pb-info">
+          <div class="pb-name"><span class="pb-name-text">Чёрные</span> <span class="pb-turn">ход</span></div>
+          <div class="pb-meta"></div>
+        </div>
+        <div class="pb-material">
+          <span id="capturedBlack" class="captured-pieces"></span>
+          <span class="pb-advantage"></span>
+        </div>
+        <span id="timerBlack" class="timer" data-player="b">10:00</span>
+      </div>
 
       <div class="board-frame neumorphic-inset">
         <div id="board" class="board"></div>
       </div>
 
-      <div class="status-row">
-        <div class="timers">
-          <span id="timerWhite" class="timer" data-player="w">♔ 10:00</span>
-          <span id="timerBlack" class="timer" data-player="b">♚ 10:00</span>
+      <div id="playerBarBottom" class="player-bar" data-side="w">
+        <span class="pb-avatar" aria-hidden="true">♔</span>
+        <div class="pb-info">
+          <div class="pb-name"><span class="pb-name-text">Белые</span> <span class="pb-turn">ход</span></div>
+          <div class="pb-meta"></div>
         </div>
-        <div id="statusText" class="status-text">Загрузка партии…</div>
-        <div id="thinkingIndicator" class="thinking hidden" aria-label="Нейросеть думает">
-          <span></span><span></span><span></span>
+        <div class="pb-material">
+          <span id="capturedWhite" class="captured-pieces"></span>
+          <span class="pb-advantage"></span>
+        </div>
+        <span id="timerWhite" class="timer" data-player="w">10:00</span>
+      </div>
+
+      <div class="game-actions">
+        <div class="status-row">
+          <div id="statusText" class="status-text">Загрузка партии…</div>
+          <div id="thinkingIndicator" class="thinking hidden" aria-label="Нейросеть думает">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="controls-row">
+          <button id="resignBtn" class="btn btn-danger btn-sm" type="button">Сдаться</button>
+          <button id="newGameBtn" class="btn btn-ghost btn-sm" type="button">Новая игра</button>
         </div>
       </div>
 
@@ -130,35 +160,27 @@
         <button id="retryAiBtn" class="btn btn-danger btn-sm" type="button">Повторить</button>
       </div>
 
-      <div class="captured-row">
-        <div class="captured-group">
-          <span class="captured-label">Взято белыми</span>
-          <div id="capturedWhite" class="captured-pieces"></div>
-        </div>
-        <div class="captured-group">
-          <span class="captured-label">Взято чёрными</span>
-          <div id="capturedBlack" class="captured-pieces"></div>
-        </div>
-      </div>
-
-      <div class="controls-row">
-        <button id="resignBtn" class="btn btn-danger" type="button">Сдаться</button>
-        <button id="newGameBtn" class="btn btn-ghost" type="button">Новая игра</button>
-      </div>
-
-      <div class="move-list-wrap">
-        <div id="moveList" class="move-list"></div>
+      <!-- На узких экранах ходы и чат — вкладки под доской -->
+      <div class="mobile-tabs" role="tablist" aria-label="Ходы и чат">
+        <button type="button" class="mobile-tab is-active" role="tab" data-tab="moves" aria-selected="true">Ходы</button>
+        <button type="button" class="mobile-tab" role="tab" data-tab="chat" aria-selected="false">Чат с ИИ</button>
       </div>
     </section>
 
     <!-- ============ ЧАТ ============ -->
     <aside class="chat-card neumorphic-raised">
+      <div class="move-list-wrap" aria-label="Ходы партии">
+        <div id="moveList" class="move-list"></div>
+      </div>
+
       <div class="chat-header">
         <h2 id="chatTitle">Диалог с нейросетью</h2>
         <span id="chatHint" class="chat-hint"></span>
       </div>
 
       <div id="chatLog" class="chat-log"></div>
+
+      <div id="chatQuota" class="chat-quota" aria-live="polite"></div>
 
       <div class="chat-input-row">
         <textarea id="chatInput" rows="2"
@@ -177,13 +199,13 @@
     <p class="modal-sub">За кого играете вы? Нейросеть возьмёт себе оставшийся цвет.</p>
 
     <div class="diff-section">
-      <span class="diff-section-label">Цвет</span>
+      <span class="diff-section-label">Ваш цвет</span>
       <div class="color-choice-row">
         <button type="button" class="color-choice-btn" data-color="w" aria-pressed="false">
-          <span class="color-choice-swatch color-choice-white"></span>Белые
+          <span class="color-choice-swatch color-choice-white"></span>Белые<span class="choice-check" aria-hidden="true">✓</span>
         </button>
         <button type="button" class="color-choice-btn" data-color="b" aria-pressed="false">
-          <span class="color-choice-swatch color-choice-black"></span>Чёрные
+          <span class="color-choice-swatch color-choice-black"></span>Чёрные<span class="choice-check" aria-hidden="true">✓</span>
         </button>
       </div>
     </div>
@@ -192,19 +214,22 @@
       <span class="diff-section-label">Сложность</span>
       <div class="diff-choice-row">
         <button type="button" class="diff-choice-btn diff-easy" data-level="8" aria-pressed="false">
-          <span class="diff-dot"></span>Лёгкий
+          <span class="diff-choice-name"><span class="diff-dot"></span>Лёгкий</span>
+          <span class="diff-elo">≈1400</span>
         </button>
         <button type="button" class="diff-choice-btn diff-medium" data-level="14" aria-pressed="false">
-          <span class="diff-dot"></span>Средний
+          <span class="diff-choice-name"><span class="diff-dot"></span>Средний</span>
+          <span class="diff-elo">≈2150</span>
         </button>
         <button type="button" class="diff-choice-btn diff-hard" data-level="20" aria-pressed="false">
-          <span class="diff-dot"></span>Сложный
+          <span class="diff-choice-name"><span class="diff-dot"></span>Сложный</span>
+          <span class="diff-elo">≈2900</span>
         </button>
       </div>
     </div>
 
     <div class="modal-actions">
-      <button id="startAiGameBtn" class="btn btn-accent" type="button" disabled>Начать игру</button>
+      <button id="startAiGameBtn" class="btn btn-accent" type="button">Начать игру</button>
       <button id="colorModalBackBtn" class="btn btn-ghost" type="button">Назад</button>
     </div>
   </div>
@@ -279,8 +304,15 @@
 <!-- ============ МОДАЛКА: ИТОГ ПАРТИИ ============ -->
 <div id="resultModal" class="modal-overlay hidden">
   <div class="modal neumorphic-raised wide">
+    <span id="resultEyebrow" class="result-eyebrow"></span>
     <h2 id="resultTitle">Игра окончена</h2>
     <p id="resultText" class="modal-sub"></p>
+
+    <div class="result-stats">
+      <div class="result-stat"><b id="resultStatMoves">0</b><span>ходов</span></div>
+      <div class="result-stat"><b id="resultStatTime">00:00</b><span>длилась партия</span></div>
+      <div class="result-stat"><b id="resultStatCaptured">0</b><span>фигур вы взяли</span></div>
+    </div>
 
     <div id="characterResultBlock" class="character-result-block hidden">
       <div id="characterResultContent"></div>
@@ -291,9 +323,10 @@
       <div id="analysisContent" class="analysis-content"></div>
     </div>
 
-    <div class="modal-actions">
-      <button id="requestAnalysisBtn" class="btn btn-accent" type="button">Анализ партии</button>
-      <button id="closeResultBtn" class="btn btn-ghost" type="button">Новая игра</button>
+    <div class="modal-actions result-actions">
+      <button id="requestAnalysisBtn" class="btn btn-accent" type="button">Разобрать партию</button>
+      <button id="rematchBtn" class="btn btn-ghost" type="button">Ещё раз</button>
+      <button id="closeResultBtn" class="btn btn-ghost" type="button">На главную</button>
     </div>
   </div>
 </div>

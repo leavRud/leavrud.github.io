@@ -480,8 +480,12 @@ const Achievements = (function () {
     if (!user) return;
     const { error } = await sb
       .from('achievements')
-      .upsert({ user_id: user.id, achievement_key: achievementKey });
-    if (error) console.error('Не удалось синхронизировать достижение с Supabase:', error);
+      .upsert({ user_id: user.id, achievement_key: achievementKey },
+              { onConflict: 'user_id,achievement_key', ignoreDuplicates: true });
+    if (error) { console.error('Не удалось синхронизировать достижение с Supabase:', error); return; }
+    // Награда за достижение — бонусные вопросы нейросети (выдаётся один раз).
+    const { data: reward } = await sb.rpc('claim_achievement_reward', { p_achievement_key: achievementKey });
+    if (reward?.[0]?.granted > 0 && typeof window.refreshChatQuota === 'function') window.refreshChatQuota();
   }
 
   function processToastQueue() {

@@ -186,12 +186,15 @@ const PIECE_GLYPH = {
 function buildPieceSvg(piece) {
   const isWhite = piece[0] === 'w';
   const glyph = PIECE_GLYPH[piece];
-  const fill = isWhite ? '#F6F1E6' : '#3A2A22';
-  const stroke = isWhite ? '#7B3B3E' : '#AD8A4E';
+  // Чёрные фигуры почти чёрные с яркой обводкой — иначе на тёмных клетках
+  // их видно только по контуру.
+  const fill = isWhite ? '#F6F1E6' : '#141210';
+  const stroke = isWhite ? '#7B3B3E' : '#E0B85C';
+  const strokeWidth = isWhite ? 2.2 : 3;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">` +
     `<text x="50" y="78" font-size="80" text-anchor="middle" ` +
     `font-family="'Segoe UI Symbol','Noto Sans Symbols 2',sans-serif" ` +
-    `fill="${fill}" stroke="${stroke}" stroke-width="2.2" paint-order="stroke">${glyph}</text>` +
+    `fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" paint-order="stroke">${glyph}</text>` +
     `</svg>`;
   return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 }
@@ -205,12 +208,73 @@ function pieceThemeFn(piece) {
    PROVOD.AI (через Supabase Edge Function — работает на любом хостинге,
    включая GitHub Pages, без локального прокси-сервера)
    ========================================================================= */
-async function provodChat(messages, { temperature = 0.6 } = {}) {
+// kind: 'question' — тратит вопрос из дневного лимита (чат, разбор хода, анализ),
+//       'game'     — служебные вызовы режима персонажей (у них отдельный потолок).
+// При ошибке у исключения есть поле code: AUTH_REQUIRED, DAILY_LIMIT_REACHED,
+// GAME_LIMIT_REACHED, PROVIDER_ERROR и т.п. (см. supabase/functions/chat-proxy).
+async function provodChat(messages, { temperature = 0.6, kind = 'question' } = {}) {
   const { data, error } = await sb.functions.invoke('chat-proxy', {
-    body: { model: PROVODAI_MODEL, messages, temperature },
+    body: { model: PROVODAI_MODEL, messages, temperature, kind },
   });
-  if (error) throw new Error(`Provod.ai ошибка: ${error.message}`);
+  if (error) {
+    let code = null;
+    try { code = (await error.context?.json())?.error ?? null; } catch (e) { /* тело ответа не JSON */ }
+    const err = new Error(`Provod.ai ошибка: ${code || error.message}`);
+    err.code = code;
+    throw err;
+  }
+  if (data?.quota) renderChatQuota(data.quota);
   return data?.choices?.[0]?.message?.content ?? '';
+}
+
+/* ---- Дневной лимит вопросов (этап 0: бесплатно, но только после входа) ---- */
+let chatSignedIn = false;
+
+function renderChatQuota(quota) {
+  const el = $id('chatQuota');
+  if (!el) return;
+  if (!chatSignedIn) {
+    el.innerHTML = 'Войдите, чтобы задавать вопросы нейросети: 15 вопросов в день бесплатно. ' +
+      '<button type="button" class="chat-quota-login">Войти</button>';
+    el.classList.remove('is-empty');
+    return;
+  }
+  if (!quota) { el.textContent = ''; return; }
+  const left = Math.max(0, quota.daily_limit - quota.daily_used);
+  const bonus = Math.floor(Number(quota.bonus_left) || 0);
+  let text = `Осталось ${left} из ${quota.daily_limit} вопросов на сегодня`;
+  if (bonus > 0) text += ` · ещё ${bonus} бонусных`;
+  el.textContent = text;
+  el.classList.toggle('is-empty', left === 0 && bonus === 0);
+}
+
+async function refreshChatQuota() {
+  const { data: { session } } = await sb.auth.getSession();
+  chatSignedIn = !!session;
+  if (!chatSignedIn) { renderChatQuota(null); return; }
+  const { data, error } = await sb.rpc('get_chat_quota');
+  renderChatQuota(error ? null : data?.[0]);
+}
+window.refreshChatQuota = refreshChatQuota;
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.chat-quota-login')) openAuthModal();
+});
+
+// Текст для игрока по коду ошибки chat-proxy.
+function chatErrorMessage(error) {
+  switch (error?.code) {
+    case 'AUTH_REQUIRED':
+      return 'Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 15 вопросов в день.';
+    case 'DAILY_LIMIT_REACHED':
+      return 'Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве, а бонусные вопросы даются за достижения.';
+    case 'GAME_LIMIT_REACHED':
+      return 'Персонажи на сегодня устали: дневной лимит игровых запросов исчерпан. Попробуйте завтра.';
+    case 'REQUEST_TOO_LONG':
+      return 'Слишком длинный запрос. Начните новую партию или задайте вопрос короче.';
+    default:
+      return 'Нейросеть сейчас не отвечает. Попробуйте ещё раз через минуту.';
+  }
 }
 
 /* =========================================================================
@@ -770,17 +834,30 @@ $id('homePlayText').addEventListener('click', () => {
 let chosenColor = null;
 let chosenLevel = null;
 
+const LEVEL_LABEL = { 8: 'лёгкий', 14: 'средний', 20: 'сложный' };
+
+// Модалка открывается с готовым выбором (последний цвет и сложность, по
+// умолчанию белые и «Средний»), поэтому «Начать игру» всегда активна.
 function resetDifficultyChoice() {
-  chosenColor = null;
-  chosenLevel = null;
-  document.querySelectorAll('.color-choice-btn, .diff-choice-btn').forEach(b => {
-    b.classList.remove('is-active');
-    b.setAttribute('aria-pressed', 'false');
+  chosenColor = localStorage.getItem('chessLastColor') === 'b' ? 'b' : 'w';
+  const savedLevel = parseInt(localStorage.getItem('chessLastLevel'), 10);
+  chosenLevel = LEVEL_LABEL[savedLevel] ? savedLevel : 14;
+  document.querySelectorAll('.color-choice-btn').forEach(b => {
+    const active = b.dataset.color === chosenColor;
+    b.classList.toggle('is-active', active);
+    b.setAttribute('aria-pressed', String(active));
   });
-  $id('startAiGameBtn').disabled = true;
+  document.querySelectorAll('.diff-choice-btn').forEach(b => {
+    const active = parseInt(b.dataset.level, 10) === chosenLevel;
+    b.classList.toggle('is-active', active);
+    b.setAttribute('aria-pressed', String(active));
+  });
+  updateStartAiBtn();
 }
 function updateStartAiBtn() {
-  $id('startAiGameBtn').disabled = !(chosenColor && chosenLevel);
+  const btn = $id('startAiGameBtn');
+  btn.disabled = !(chosenColor && chosenLevel);
+  btn.textContent = `Начать: ${chosenColor === 'b' ? 'чёрные' : 'белые'}, ${LEVEL_LABEL[chosenLevel] || 'средний'}`;
 }
 document.querySelectorAll('.color-choice-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -813,6 +890,10 @@ $id('startAiGameBtn').addEventListener('click', () => {
   state.playerColor = chosenColor;
   state.aiColor = chosenColor === 'w' ? 'b' : 'w';
   state.skillLevel = chosenLevel;
+  try {
+    localStorage.setItem('chessLastColor', chosenColor);
+    localStorage.setItem('chessLastLevel', String(chosenLevel));
+  } catch (e) { /* хранилище недоступно — просто не запоминаем */ }
   hideModal('colorModal');
   if (stockfish && isEngineReady) {
     stockfish.postMessage(`setoption name Skill Level value ${chosenLevel}`);
@@ -830,6 +911,12 @@ const charState = {
 };
 
 function openCharacterSetup() {
+  // Персонажей ведёт нейросеть, а она доступна только после входа.
+  if (!chatSignedIn) {
+    showToast('Войдите, чтобы играть против персонажей: ими управляет нейросеть');
+    openAuthModal();
+    return;
+  }
   hideModal('characterCardModal');
   $id('charSetupError').classList.add('hidden');
   showModal('characterSetupModal');
@@ -1027,7 +1114,7 @@ async function generateCharacterProfile(input) {
     { role: 'system', content: buildCharacterGenSystemPrompt() },
     { role: 'user', content: userMsg },
   ];
-  const raw = await provodChat(messages, { temperature: 0.95 });
+  const raw = await provodChat(messages, { temperature: 0.95, kind: 'game' });
   let profile;
   try {
     profile = JSON.parse(extractJson(raw));
@@ -1499,6 +1586,12 @@ $id('newGameBtn').addEventListener('click', () => {
   resetToModeSelection();
 });
 $id('closeResultBtn').addEventListener('click', resetToModeSelection);
+// «Ещё раз» — новая партия с теми же режимом, цветом и сложностью.
+$id('rematchBtn').addEventListener('click', () => {
+  playSound('ui');
+  hideModal('resultModal');
+  initGame();
+});
 $id('moveDetailCloseBtn').addEventListener('click', () => {
   document.getElementById('moveDetailModal').classList.add('hidden');
 });
@@ -1531,10 +1624,11 @@ function initGame() {
   $id('chatLog').innerHTML = '';
   $id('analysisBlock').classList.add('hidden');
   $id('analysisContent').innerHTML = '';
-  $id('requestAnalysisBtn').textContent = 'Анализ партии';
+  $id('requestAnalysisBtn').textContent = 'Разобрать партию';
   hideModal('resultModal');
   hideConnectionBanner();
-  renderCaptured();
+  state.gameStartedAt = Date.now();
+  renderPlayerBars();
   renderMoveList();
   updateStatus();
 
@@ -1725,9 +1819,56 @@ function trackCapture(move) {
   renderCaptured();
 }
 
+const GLYPH_VALUE = { '♙': 1, '♟': 1, '♘': 3, '♞': 3, '♗': 3, '♝': 3, '♖': 5, '♜': 5, '♕': 9, '♛': 9 };
+
 function renderCaptured() {
-  $id('capturedWhite').textContent = state.capturedByWhite.join(' ');
-  $id('capturedBlack').textContent = state.capturedByBlack.join(' ');
+  $id('capturedWhite').textContent = state.capturedByWhite.join('');
+  $id('capturedBlack').textContent = state.capturedByBlack.join('');
+  // Перевес по материалу показываем у того, кто впереди: «+2».
+  const sum = (list) => list.reduce((n, g) => n + (GLYPH_VALUE[g] || 0), 0);
+  const diff = sum(state.capturedByWhite) - sum(state.capturedByBlack);
+  document.querySelectorAll('.player-bar').forEach(bar => {
+    const adv = bar.dataset.side === 'w' ? diff : -diff;
+    bar.querySelector('.pb-advantage').textContent = adv > 0 ? `+${adv}` : '';
+  });
+}
+
+// Примерный рейтинг уровня Stockfish — та же шкала, что в eloToSkillLevel().
+function skillLevelToElo(level) {
+  return Math.round((500 + ((clamp(level, 1, 20) - 1) / 19) * 2400) / 50) * 50;
+}
+
+// Сверху — соперник, снизу — тот, за кого играют (в режиме «вдвоём» — белые).
+// Таймер и взятые фигуры каждой стороны переезжают в строку этой стороны.
+function renderPlayerBars() {
+  const bottomSide = state.mode === 'friend' ? 'w' : state.playerColor;
+  const topSide = bottomSide === 'w' ? 'b' : 'w';
+  const acc = getAccount();
+  const describe = (side) => {
+    const king = side === 'w' ? '♔' : '♚';
+    if (state.mode === 'friend') {
+      return { king, name: side === 'w' ? 'Белые' : 'Чёрные', meta: side === 'w' ? 'Игрок 1' : 'Игрок 2' };
+    }
+    if (side === state.playerColor) {
+      return { king, name: acc?.name || 'Вы', meta: acc ? `Рейтинг ${acc.elo ?? 1200}` : 'Гость' };
+    }
+    if (state.mode === 'characters' && state.character) {
+      return { king, name: state.character.name, meta: `≈${state.character.elo} Эло` };
+    }
+    const label = LEVEL_LABEL[state.skillLevel] || 'уровень ' + state.skillLevel;
+    return { king, name: 'Stockfish', meta: `${label[0].toUpperCase() + label.slice(1)} · ≈${skillLevelToElo(state.skillLevel)}` };
+  };
+  [[$id('playerBarTop'), topSide], [$id('playerBarBottom'), bottomSide]].forEach(([bar, side]) => {
+    const info = describe(side);
+    bar.dataset.side = side;
+    bar.querySelector('.pb-avatar').textContent = info.king;
+    bar.querySelector('.pb-name-text').textContent = info.name;
+    bar.querySelector('.pb-meta').textContent = info.meta;
+    bar.querySelector('.pb-material').prepend($id(side === 'w' ? 'capturedWhite' : 'capturedBlack'));
+    bar.appendChild($id(side === 'w' ? 'timerWhite' : 'timerBlack'));
+  });
+  renderCaptured();
+  updateTimerDisplay();
 }
 
 function moveRowHtml(move, i, fenBefore) {
@@ -1802,6 +1943,7 @@ function updateStatus() {
   }
   $id('statusText').textContent = text;
   updateResignButtonLabel();
+  updateTimerDisplay();
 }
 
 function updateResignButtonLabel() {
@@ -1879,11 +2021,52 @@ function checkGameOver() {
   return true;
 }
 
+function resultTitleFor(text, outcome) {
+  if (/Ничья|Пат/.test(text)) return 'Ничья';
+  if (state.mode === 'friend') return 'Партия окончена';
+  if (outcome === 'player_win') return 'Победа!';
+  if (outcome === 'character_win') return 'Поражение';
+  return 'Партия окончена';
+}
+
+// Цифры для итога: число ходов, сколько шла партия и сколько фигур взял игрок.
+function renderResultStats(text) {
+  const plies = state.game ? state.game.history().length : 0;
+  const fullMoves = Math.ceil(plies / 2);
+  const seconds = state.gameStartedAt ? Math.round((Date.now() - state.gameStartedAt) / 1000) : 0;
+  const myCaptures = state.mode === 'friend'
+    ? state.capturedByWhite.length + state.capturedByBlack.length
+    : (state.playerColor === 'w' ? state.capturedByWhite : state.capturedByBlack).length;
+
+  let reason = 'Партия окончена';
+  if (/^Мат/.test(text)) reason = 'Мат';
+  else if (/сдал/.test(text)) reason = 'Сдача';
+  else if (/по времени|Время вышло/.test(text)) reason = 'Время вышло';
+  else if (/Пат/.test(text)) reason = 'Пат';
+  else if (/Ничья/.test(text)) reason = 'Ничья';
+  $id('resultEyebrow').textContent = `${reason} · ${fullMoves}-й ход`;
+  $id('resultStatMoves').textContent = String(fullMoves);
+  $id('resultStatMoves').nextElementSibling.textContent = pluralRu(fullMoves, 'ход', 'хода', 'ходов');
+  $id('resultStatTime').textContent = formatTime(seconds);
+  $id('resultStatCaptured').textContent = String(myCaptures);
+  const pieces = pluralRu(myCaptures, 'фигура', 'фигуры', 'фигур');
+  $id('resultStatCaptured').nextElementSibling.textContent = state.mode === 'friend' ? `${pieces} взято` : `${pieces} взяли вы`;
+}
+
+// 1 ход, 2 хода, 5 ходов
+function pluralRu(n, one, few, many) {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+  return many;
+}
+
 function showResultModal(text, outcome = 'draw') {
   if (outcome === 'player_win') playSound('win');
   else if (outcome === 'character_win') playSound('lose');
-  $id('resultTitle').textContent = 'Игра окончена';
+  $id('resultTitle').textContent = resultTitleFor(text, outcome);
   $id('resultText').textContent = text;
+  renderResultStats(text);
   const charBlock = $id('characterResultBlock');
   if (state.mode === 'characters' && state.character) {
     charBlock.classList.remove('hidden');
@@ -2062,7 +2245,7 @@ async function pickMoveByCharacterStyle(fen, candidates) {
 Выбери ОДИН ход, который лучше всего соответствует характеру и стилю игры персонажа. Ответь СТРОГО одной нотацией хода (SAN) из списка выше, без пояснений и без знаков препинания вокруг.`;
 
   try {
-    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.7 });
+    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.7, kind: 'game' });
     const clean = stripMarkdown(raw).trim().split(/\s+/)[0].replace(/[.,!?"']+$/g, '');
     const found = described.find(d => d.san === clean) || described.find(d => clean && clean.includes(d.san));
     if (found) return candidates.find(cd => cd.move === found.uci) || null;
@@ -2152,7 +2335,7 @@ async function characterReact(context, isAuto = false) {
       { role: 'system', content: buildCharacterReactionPrompt() },
       { role: 'user', content: `Ситуация в партии: ${context}\nОтветь одной-двумя фразами в образе персонажа, по-русски, без кавычек и разметки.` },
     ];
-    const reply = await provodChat(messages, { temperature: 1.0 });
+    const reply = await provodChat(messages, { temperature: 1.0, kind: 'game' });
     const clean = stripMarkdown(reply).replace(/^["«]+|["»]+$/g, '').trim();
     if (!clean) return;
 
@@ -2262,7 +2445,7 @@ async function generateCharacterEndSummary(resultText, outcome) {
 Ответь СТРОГО валидным JSON без markdown и пояснений, в формате:
 {"mood":"один эмодзи, отражающий настроение персонажа","favoriteMoment":"короткая фраза о любимом моменте партии, до 12 слов, по-русски","comment":"комментарий персонажа о партии в его манере общения, 1-2 предложения, по-русски"}`;
   try {
-    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85 });
+    const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85, kind: 'game' });
     const parsed = JSON.parse(extractJson(raw));
     renderCharacterResult({
       mood: String(parsed.mood || '🙂').trim().slice(0, 4) || '🙂',
@@ -2424,8 +2607,25 @@ function trimHistory(history, maxEntries = 12) {
   return history.slice(-maxEntries);
 }
 
+/* ---- Вкладки «Ходы / Чат» под доской (видны только на узких экранах) ---- */
+function setMobileTab(name) {
+  document.querySelector('.layout').dataset.mobileTab = name;
+  document.querySelectorAll('.mobile-tab').forEach(tab => {
+    const active = tab.dataset.tab === name;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-selected', String(active));
+    if (active) tab.classList.remove('has-unread');
+  });
+}
+document.querySelectorAll('.mobile-tab').forEach(tab => {
+  tab.addEventListener('click', () => { playSound('ui'); setMobileTab(tab.dataset.tab); });
+});
+
 function appendChatMessage(role, text, { typewriter = false } = {}) {
   state.chatDisplay.push({ role, text });
+  if (role === 'assistant' && document.querySelector('.layout').dataset.mobileTab !== 'chat') {
+    document.querySelector('.mobile-tab[data-tab="chat"]').classList.add('has-unread');
+  }
   const div = document.createElement('div');
   div.className = `msg msg-${role}`;
   $id('chatLog').appendChild(div);
@@ -2467,6 +2667,11 @@ async function handleAsk() {
   const input = $id('chatInput');
   const question = input.value.trim();
   if (!question || state.isAsking || !state.game) return;
+  if (!chatSignedIn) {
+    logSystemChat(chatErrorMessage({ code: 'AUTH_REQUIRED' }));
+    openAuthModal();
+    return;
+  }
   input.value = '';
   appendChatMessage('user', question);
   setAskLoading(true);
@@ -2480,15 +2685,17 @@ async function handleAsk() {
       ...trimHistory(state.chatApiHistory)
     ];
     const temperature = state.settings.temperature / 10;
-  const reply = await provodChat(messages, { temperature });  
+    const reply = await provodChat(messages, { temperature });
     const cleanReply = stripMarkdown(reply);
     state.chatApiHistory.push({ role: 'assistant', content: reply });
     appendChatMessage('assistant', cleanReply || '(пустой ответ модели)', { typewriter: true });
     hideConnectionBanner();
   } catch (error) {
     console.error('Ошибка чата:', error);
-    appendChatMessage('system', 'Не удалось связаться с Provod.ai. Проверьте API-ключ и баланс.');
-    showConnectionBanner(`Ошибка Provod.ai: ${error.message}`);
+    // Вопрос без ответа не должен оставаться в истории, которая уходит модели.
+    state.chatApiHistory.pop();
+    appendChatMessage('system', chatErrorMessage(error));
+    if (error.code === 'AUTH_REQUIRED') { chatSignedIn = false; renderChatQuota(null); openAuthModal(); }
   } finally {
     setAskLoading(false);
   }
@@ -2592,6 +2799,11 @@ async function openMoveDetail(fen, san, label) {
       if (moveObj) bestMoveSan = moveObj.san;
     }
 
+    if (!chatSignedIn) {
+      commentEl.textContent = `Лучший ход по Stockfish: ${bestMoveSan || '—'}. Объяснение от нейросети доступно после входа в аккаунт.`;
+      return;
+    }
+
     const prompt = `
 Позиция (FEN): ${fen}
 Фактический ход: ${san}
@@ -2604,7 +2816,7 @@ async function openMoveDetail(fen, san, label) {
     const reply = await provodChat(messages, { temperature: 0.4 });
     commentEl.textContent = stripMarkdown(reply) || 'Не удалось получить комментарий.';
   } catch (error) {
-    commentEl.textContent = 'Ошибка при анализе: ' + error.message;
+    commentEl.textContent = chatErrorMessage(error);
   } finally {
     loadingEl.classList.add('hidden');
   }
@@ -2963,8 +3175,8 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     });
 
     const pgn = state.game.pgn();
-    let comment = 'Комментарий недоступен.';
-    try {
+    let comment = chatSignedIn ? 'Комментарий недоступен.' : 'Комментарий нейросети к партии появится после входа в аккаунт.';
+    if (chatSignedIn) try {
       const prompt = `Партия в шахматы (PGN): ${pgn}
 Точность белых (расчёт движка): ${stats.accuracyWhite.toFixed(1)}%, средняя потеря centipawn: ${stats.avgCplWhite.toFixed(0)}.
 Точность чёрных: ${stats.accuracyBlack.toFixed(1)}%, средняя потеря centipawn: ${stats.avgCplBlack.toFixed(0)}.
@@ -3053,6 +3265,9 @@ $id('requestAnalysisBtn').addEventListener('click', requestAnalysis);
    АНИМАЦИИ
    ========================================================================= */
 function highlightLastMoveFade(from, to) {
+  // Постоянная подсветка последнего хода — остаётся, пока не сделан следующий.
+  $('#board .last-move-mark').removeClass('last-move-mark');
+  $(`#board .square-${from}, #board .square-${to}`).addClass('last-move-mark');
   $('#board .last-move-src, #board .last-move-dst').removeClass('last-move-src last-move-dst is-fading');
   const $from = $(`#board .square-${from}`).addClass('last-move-src');
   const $to = $(`#board .square-${to}`).addClass('last-move-dst');
@@ -4049,6 +4264,7 @@ async function initSupabaseSession() {
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
   }
+  refreshChatQuota();
 
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
@@ -4056,6 +4272,7 @@ async function initSupabaseSession() {
     } else if (event === 'SIGNED_OUT') {
       clearAccount();
     }
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') refreshChatQuota();
     renderMenuProfile();
     if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();
   });
@@ -4484,10 +4701,13 @@ function formatTime(seconds) {
 function updateTimerDisplay() {
   const w = $id('timerWhite');
   const b = $id('timerBlack');
-  if (w) w.textContent = `♔ ${formatTime(state.timeWhite)}`;
-  if (b) b.textContent = `♚ ${formatTime(state.timeBlack)}`;
-  // Активный игрок
-  const turn = state.game ? state.game.turn() : null;
+  if (w) w.textContent = state.timeLimited ? formatTime(state.timeWhite || 0) : '—';
+  if (b) b.textContent = state.timeLimited ? formatTime(state.timeBlack || 0) : '—';
+  // Активный игрок: подсвечиваем и таймер, и всю строку игрока
+  const turn = state.game && !state.isGameOver ? state.game.turn() : null;
+  document.querySelectorAll('.player-bar').forEach(bar => {
+    bar.classList.toggle('is-turn', bar.dataset.side === turn);
+  });
   [w, b].forEach(el => {
     if (!el) return;
     el.classList.remove('active', 'warning');
