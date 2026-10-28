@@ -1,0 +1,86 @@
+/* Страницы «Тарифы», «Оферта», «Конфиденциальность», «Контакты».
+   Палитра и шрифты — как у основного сайта (style.css), но без игровых стилей. */
+:root {
+  --bg: #EEE9DE;
+  --surface: #F7F3EB;
+  --text: #322D26;
+  --muted: #6B6255;
+  --line: #D8CFBF;
+  --accent: #7B3B3E;
+  --accent-soft: rgba(123, 59, 62, 0.10);
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+}
+html.dark {
+  --bg: #0F0F0E;
+  --surface: #181816;
+  --text: #E8E6E1;
+  --muted: #A39D92;
+  --line: #2C2B27;
+  --accent: #D4A547;
+  --accent-soft: rgba(212, 165, 71, 0.12);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.65 var(--font-body);
+}
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px max(16px, env(safe-area-inset-left, 0px)) 56px max(16px, env(safe-area-inset-right, 0px));
+}
+
+.legal-nav { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-bottom: 36px; }
+.legal-logo { font: 700 24px var(--font-display); color: var(--text); text-decoration: none; margin-right: auto; }
+.legal-nav a:not(.legal-logo) { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; }
+.legal-nav a[aria-current="page"] { color: var(--accent); }
+.legal-nav a:hover, .legal-nav a:focus-visible { color: var(--text); }
+
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.25; text-wrap: balance; }
+h1 { font-size: clamp(28px, 5vw, 38px); margin: 0 0 8px; }
+h2 { font-size: 22px; margin: 36px 0 10px; }
+h3 { font-size: 17px; margin: 22px 0 6px; }
+p, li { max-width: 68ch; }
+p { margin: 0 0 12px; }
+ul, ol { padding-left: 22px; margin: 0 0 12px; }
+li { margin-bottom: 4px; }
+a { color: var(--accent); }
+.lede { color: var(--muted); font-size: 17px; }
+.updated { color: var(--muted); font-size: 13px; }
+
+/* Тарифы */
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin: 22px 0 10px; }
+.plan {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.plan.is-featured { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.plan-name { font-weight: 700; }
+.plan-price { font: 700 30px var(--font-display); font-variant-numeric: tabular-nums; }
+.plan-price small { font: 600 14px var(--font-body); color: var(--muted); }
+.plan p { font-size: 14px; color: var(--muted); margin: 0; }
+
+/* Реквизиты */
+.requisites { width: 100%; border-collapse: collapse; margin: 8px 0 16px; }
+.requisites th, .requisites td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+.requisites th { width: 38%; color: var(--muted); font-weight: 600; font-size: 14px; }
+
+.note { background: var(--accent-soft); border-radius: 12px; padding: 12px 16px; margin: 16px 0; }
+
+.legal-footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+.legal-footer a { color: var(--muted); }
+
+@media (max-width: 520px) {
+  .requisites th { width: auto; display: block; border-bottom: none; padding-bottom: 0; }
+  .requisites td { display: block; padding-top: 2px; }
+}

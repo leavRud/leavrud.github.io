@@ -2891,3 +2891,26 @@ html.dark .btn-primary.btn-primary-active { color: #1a1408; }
 .modal.wide .result-actions { flex-wrap: wrap; }
 .modal.wide .result-actions #requestAnalysisBtn { flex: 1 1 100%; }
 .modal.wide .result-actions .btn-ghost { flex: 1 1 0; }
+
+/* =========================================================================
+   Подвал главной (тарифы, оферта, реквизиты) и согласие в окне входа
+   ========================================================================= */
+.home-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 4px 18px;
+  padding: 10px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.home-footer-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
+.home-footer a { color: var(--text-muted); text-decoration: none; font-weight: 600; }
+.home-footer a:hover, .home-footer a:focus-visible { color: var(--text); text-decoration: underline; }
+
+.auth-consent { margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: rgba(244, 239, 228, 0.6); text-align: center; }
+.auth-consent a { color: inherit; text-decoration: underline; }

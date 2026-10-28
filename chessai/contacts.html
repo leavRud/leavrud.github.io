@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Контакты и реквизиты — chessai</title>
+<meta name="description" content="Контакты и реквизиты исполнителя сервиса chessai." />
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('chessTheme');
+    if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="legal.css" />
+</head>
+<body>
+<div class="page">
+  <nav class="legal-nav" aria-label="Разделы">
+    <a class="legal-logo" href="./">chessai</a>
+    <a href="tarify.html">Тарифы</a>
+    <a href="oferta.html">Оферта</a>
+    <a href="privacy.html">Конфиденциальность</a>
+    <a href="contacts.html" aria-current="page">Контакты</a>
+  </nav>
+
+  <main>
+    <h1>Контакты и реквизиты</h1>
+
+    <table class="requisites">
+      <tbody>
+        <tr><th scope="row">Исполнитель</th><td>Чебаков Максим Дмитриевич</td></tr>
+        <tr><th scope="row">Статус</th><td>Плательщик налога на профессиональный доход (самозанятый)</td></tr>
+        <tr><th scope="row">ИНН</th><td>100125501326</td></tr>
+        <tr><th scope="row">Email</th><td><a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a></td></tr>
+        <tr><th scope="row">Сайт</th><td><a href="./">https://leavrud.github.io/chessai/</a></td></tr>
+        <tr><th scope="row">Услуга</th><td>Доступ к ИИ-помощнику для разбора шахматных партий. <a href="tarify.html">Цены</a></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Как с нами связаться</h2>
+    <p>По вопросам оплаты, возврата и работы сайта пишите на <a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a>.
+      Отвечаем в течение 3 рабочих дней. В письме о платеже укажите email аккаунта и дату оплаты.</p>
+    <p>Сообщить об ошибке или предложить идею можно и прямо на сайте: меню → «О приложении» → «Обратная связь».</p>
+  </main>
+
+  <footer class="legal-footer">
+    <span>Исполнитель: Чебаков Максим Дмитриевич, плательщик налога на профессиональный доход, ИНН 100125501326</span>
+    <span><a href="oferta.html">Публичная оферта</a> · <a href="privacy.html">Политика конфиденциальности</a></span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Тарифы — chessai</title>
+<meta name="description" content="Цены на вопросы ИИ-помощнику chessai и порядок получения услуги." />
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('chessTheme');
+    if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+  } catch (e) {}
+})();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="legal.css" />
+</head>
+<body>
+<div class="page">
+  <nav class="legal-nav" aria-label="Разделы">
+    <a class="legal-logo" href="./">chessai</a>
+    <a href="tarify.html" aria-current="page">Тарифы</a>
+    <a href="oferta.html">Оферта</a>
+    <a href="privacy.html">Конфиденциальность</a>
+    <a href="contacts.html">Контакты</a>
+  </nav>
+
+  <main>
+    <h1>Тарифы</h1>
+    <p class="lede">chessai — онлайн-сервис для игры в шахматы против движка Stockfish и разбора партий с ИИ-помощником.
+      Игра против Stockfish, игра вдвоём на одном устройстве и анализ партии движком бесплатны и доступны без регистрации.
+      Платно — только вопросы ИИ-помощнику сверх бесплатного дневного лимита.</p>
+
+    <div class="plans">
+      <div class="plan">
+        <span class="plan-name">Бесплатно</span>
+        <span class="plan-price">0 ₽</span>
+        <p>15 вопросов ИИ-помощнику каждый день после регистрации. Обновляются в 00:00 по Москве, неиспользованные не переносятся.</p>
+      </div>
+      <div class="plan is-featured">
+        <span class="plan-name">100 вопросов</span>
+        <span class="plan-price">39 ₽</span>
+        <p>Пакет вопросов ИИ-помощнику. Срок действия не ограничен.</p>
+      </div>
+      <div class="plan">
+        <span class="plan-name">300 вопросов</span>
+        <span class="plan-price">99 ₽</span>
+        <p>Пакет вопросов ИИ-помощнику. Срок действия не ограничен.</p>
+      </div>
+    </div>
+
+    <h2>Что считается вопросом</h2>
+    <p>Один вопрос — это одно из действий:</p>
+    <ul>
+      <li>сообщение ИИ-помощнику в чате рядом с доской и его ответ;</li>
+      <li>объяснение отдельного хода в разборе партии;</li>
+      <li>текстовый комментарий ИИ к анализу партии.</li>
+    </ul>
+    <p>Сначала расходуются бесплатные вопросы за день, затем бонусные (2 за каждое полученное достижение), затем купленные.
+      Если ИИ-помощник не ответил из-за технической ошибки, вопрос возвращается автоматически.</p>
+
+    <h2>Как получить услугу</h2>
+    <p>Услуга цифровая и оказывается онлайн на сайте <a href="./">leavrud.github.io/chessai</a>. Физической доставки нет.</p>
+    <ol>
+      <li>Зарегистрируйтесь или войдите на сайте.</li>
+      <li>Выберите пакет и оплатите его банковской картой или через СБП на защищённой странице ЮKassa.
+        Данные карты вводятся на стороне ЮKassa и нам не передаются.</li>
+      <li>Вопросы зачисляются на баланс вашего аккаунта автоматически, обычно в течение минуты после оплаты.
+        Остаток виден под окном чата.</li>
+      <li>Чек приходит на email, указанный при оплате.</li>
+    </ol>
+    <p>Если вопросы не зачислились в течение суток, напишите на <a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a> и укажите email аккаунта и дату оплаты.</p>
+
+    <h2>Возврат</h2>
+    <p>Вы можете в любой момент отказаться от купленного пакета и вернуть деньги за неиспользованные купленные вопросы.
+      Порядок описан в разделе 6 <a href="oferta.html">оферты</a>. Бесплатные и бонусные вопросы не возвращаются, так как за них не платили.</p>
+  </main>
+
+  <footer class="legal-footer">
+    <span>Исполнитель: Чебаков Максим Дмитриевич, плательщик налога на профессиональный доход, ИНН 100125501326</span>
+    <span>Email: <a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a> · <a href="contacts.html">Контакты и реквизиты</a></span>
+  </footer>
+</div>
+</body>
+</html>
