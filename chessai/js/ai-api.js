@@ -69,7 +69,9 @@ function renderProfileQuota() {
   box.classList.toggle('is-empty', left === 0 && extra === 0);
 }
 
-$id('profileBuyBtn').addEventListener('click', () => { playSound('ui'); openBuyModal(); });
+// ?. — на случай закэшированного старого index.html без этой кнопки:
+// иначе ошибка остановила бы файл и сломала покупку ниже.
+$id('profileBuyBtn')?.addEventListener('click', () => { playSound('ui'); openBuyModal(); });
 
 /* ---- Покупка пакетов вопросов (supabase/functions/payments) ---- */
 let buyPack = 'q100';
