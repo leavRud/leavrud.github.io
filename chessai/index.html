@@ -456,7 +456,7 @@
      ПРАВАЯ БОКОВАЯ ПАНЕЛЬ (Side Panel) — единая система навигации приложения.
      Открывается кнопкой ☰ (справа), выезжает СПРАВА НАЛЕВО.
      Внутри — несколько "view" (#view-...), из которых виден только один —
-     переключение управляется navigationState в app.js (navigateTo/navigateBack).
+     переключение управляется navigationState в js/side-panel.js (navigateTo/navigateBack).
      ============================================================================ -->
 <div id="menuOverlay" class="settings-overlay">
   <div id="menuBackdrop" class="settings-backdrop"></div>
@@ -608,7 +608,15 @@
             </div>
           </div>
 
-          <div class="settings-row">
+          <div class="settings-row column">
+            <span class="settings-row-label">Фон главного экрана</span>
+            <div id="homeBackgroundRow" class="board-style-row">
+              <button type="button" class="board-style-btn" data-home-bg="knights">Рой коней</button>
+              <button type="button" class="board-style-btn" data-home-bg="snow">Фигурный снегопад</button>
+            </div>
+          </div>
+
+          <div id="homeEnemiesRow" class="settings-row">
             <div>
               <div class="settings-row-label">Вражеские пешки на главном экране</div>
               <div class="settings-row-desc">Падающие пешки, которых ловят кони вокруг кнопки «Играть»</div>
@@ -983,7 +991,28 @@
 <!-- Основной скрипт приложения -->
 <script src="achievements.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+<!-- Логика приложения. Это обычные скрипты с общими глобальными именами,
+     поэтому порядок важен: файл может сразу при загрузке пользоваться только
+     тем, что объявлено в файлах выше. state.js — первым, main.js — последним. -->
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/ai-api.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/loading-screen.js"></script>
+<script src="js/home-screen.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/home-background.js"></script>
+<script src="js/game.js"></script>
+<script src="js/opponents.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/account.js"></script>
+<script src="js/side-panel.js"></script>
+<script src="js/side-panel-views.js"></script>
+<script src="js/main.js"></script>
 
 <!-- Toast-уведомление -->
 <div id="toast" class="toast hidden"></div>
