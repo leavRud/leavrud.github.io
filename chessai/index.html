@@ -543,6 +543,27 @@
           </div>
         </div>
 
+        <!-- Лимиты вопросов к нейросети: те же данные, что под чатом (get_chat_quota) -->
+        <div id="profileQuota" class="settings-group profile-quota hidden">
+          <div class="settings-group-title">Вопросы к нейросети</div>
+          <div class="settings-row column">
+            <div class="settings-row-top">
+              <span class="settings-row-label">Бесплатно сегодня</span>
+              <span id="profileQuotaDaily" class="profile-quota-value">—</span>
+            </div>
+            <div class="profile-quota-bar" aria-hidden="true"><span id="profileQuotaBar"></span></div>
+            <div class="settings-row-desc">Обновляются в полночь по Москве</div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-row-label">В запасе</div>
+              <div class="settings-row-desc">Бонусные и купленные — тратятся, когда кончатся бесплатные</div>
+            </div>
+            <span id="profileQuotaExtra" class="profile-quota-value">—</span>
+          </div>
+          <button id="profileBuyBtn" class="btn btn-accent profile-quota-buy" type="button">Купить вопросы</button>
+        </div>
+
         <div class="modal-actions menu-view-actions">
           <button id="profileEditBtn" class="btn btn-accent" type="button">Редактировать профиль</button>
           <button id="profileLogoutBtn" class="btn btn-ghost" type="button">Выйти из аккаунта</button>

@@ -26,8 +26,11 @@ async function provodChat(messages, { temperature = 0.6, kind = 'question' } = {
 
 /* ---- Дневной лимит вопросов (этап 0: бесплатно, но только после входа) ---- */
 let chatSignedIn = false;
+let lastChatQuota = null; // последний ответ get_chat_quota — его же показывает профиль
 
 function renderChatQuota(quota) {
+  lastChatQuota = chatSignedIn ? quota : null;
+  renderProfileQuota();
   const el = $id('chatQuota');
   if (!el) return;
   if (!chatSignedIn) {
@@ -49,6 +52,24 @@ function renderChatQuota(quota) {
   el.appendChild(buy);
   el.classList.toggle('is-empty', left === 0 && extra === 0);
 }
+
+// Блок «Вопросы к нейросети» в профиле. Гостю не показываем — у него
+// в профиле и так кнопка «Войти».
+function renderProfileQuota() {
+  const box = $id('profileQuota');
+  if (!box) return;
+  const quota = lastChatQuota;
+  box.classList.toggle('hidden', !quota);
+  if (!quota) return;
+  const left = Math.max(0, quota.daily_limit - quota.daily_used);
+  const extra = Math.floor(Number(quota.bonus_left) || 0);
+  $id('profileQuotaDaily').textContent = `${left} из ${quota.daily_limit}`;
+  $id('profileQuotaBar').style.width = `${quota.daily_limit ? (left / quota.daily_limit) * 100 : 0}%`;
+  $id('profileQuotaExtra').textContent = extra;
+  box.classList.toggle('is-empty', left === 0 && extra === 0);
+}
+
+$id('profileBuyBtn').addEventListener('click', () => { playSound('ui'); openBuyModal(); });
 
 /* ---- Покупка пакетов вопросов (supabase/functions/payments) ---- */
 let buyPack = 'q100';

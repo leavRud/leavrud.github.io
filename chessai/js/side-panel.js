@@ -216,6 +216,9 @@ function renderProfileView() {
     if (eloStatEl) eloStatEl.textContent = Number.isFinite(acc.elo) ? acc.elo : 1200;
     if (winsEl) winsEl.textContent = stats && Number.isFinite(stats.winsTotal) ? stats.winsTotal : '—';
     if (gamesEl) gamesEl.textContent = stats && Number.isFinite(stats.gamesPlayed) ? stats.gamesPlayed : '—';
+    // Лимиты вопросов: сразу показываем последние известные, затем свежие с сервера
+    renderProfileQuota();
+    refreshChatQuota();
   } else {
     avatarEl.textContent = '♟';
     nameEl.textContent = 'Гость';

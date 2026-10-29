@@ -2228,6 +2228,15 @@ html.dark .achv-modal-overlay .achv-modal {
 .menu-stats-list .settings-row { border-bottom-color: rgba(244, 239, 228, 0.08); }
 .menu-stats-list .settings-row-label { color: #F4EFE4; }
 
+/* Лимиты вопросов к нейросети в view "Профиль" */
+.profile-quota { margin-top: 22px; }
+.profile-quota .settings-row-label { color: #F4EFE4; }
+.profile-quota-value { font-size: 15px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+.profile-quota.is-empty .profile-quota-value { color: var(--danger); }
+.profile-quota-bar { height: 6px; border-radius: 999px; background: rgba(244, 239, 228, 0.1); overflow: hidden; }
+.profile-quota-bar span { display: block; height: 100%; border-radius: inherit; background: var(--gold); transition: width 0.4s ease; }
+.profile-quota-buy { width: 100%; margin-top: 14px; }
+
 /* Крупное ELO-число вверху Stats View */
 .menu-stats-hero { text-align: center; padding: 6px 0 24px; }
 .menu-stats-hero-value { font-family: var(--font-display); font-size: 42px; font-weight: 700; color: #F4EFE4; line-height: 1; }
@@ -2402,6 +2411,10 @@ html.dark .achv-modal-overlay .achv-modal {
   z-index: 260;
 }
 #feedbackModal {
+  z-index: 260;
+}
+/* Покупку вопросов открывают и из профиля в боковой панели */
+#buyModal {
   z-index: 260;
 }
 .achv-modal-overlay .achv-modal.auth-modal {
