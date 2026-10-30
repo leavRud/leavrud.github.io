@@ -74,32 +74,76 @@ function renderProfileQuota() {
 $id('profileBuyBtn')?.addEventListener('click', () => { playSound('ui'); openBuyModal(); });
 
 /* ---- Покупка пакетов вопросов (supabase/functions/payments) ---- */
-let buyPack = 'q100';
+// Пакеты и цены приходят с сервера (loadPacks из js/packs.js), здесь их нет.
+let buyPacks = [];
+let buyPack = null;
+
+function renderBuyPacks() {
+  const box = $id('buyPacks');
+  box.textContent = '';
+  for (const pack of buyPacks) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'buy-pack';
+    btn.dataset.pack = pack.id;
+    btn.setAttribute('role', 'radio');
+    const name = document.createElement('span');
+    name.className = 'buy-pack-name';
+    name.textContent = packQuestionsLabel(pack);
+    const price = document.createElement('span');
+    price.className = 'buy-pack-price';
+    price.textContent = formatRub(pack.price);
+    btn.append(name, price);
+    const saving = packSavingNote(pack, buyPacks);
+    if (saving) {
+      const note = document.createElement('span');
+      note.className = 'buy-pack-note';
+      note.textContent = saving;
+      btn.append(note);
+    }
+    box.append(btn);
+  }
+}
 
 function selectBuyPack(packId) {
-  buyPack = packId;
-  let price = '';
-  document.querySelectorAll('.buy-pack').forEach(btn => {
-    const active = btn.dataset.pack === packId;
+  const pack = buyPacks.find(p => p.id === packId) || buyPacks[0];
+  if (!pack) return;
+  buyPack = pack.id;
+  document.querySelectorAll('#buyPacks .buy-pack').forEach(btn => {
+    const active = btn.dataset.pack === pack.id;
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-checked', String(active));
-    if (active) price = btn.dataset.price;
   });
-  $id('buyPayBtn').textContent = `Оплатить ${price} ₽`;
+  $id('buyPayBtn').textContent = `Оплатить ${formatRub(pack.price)}`;
 }
 
 // Покупка только после входа: вопросы зачисляются на аккаунт.
-function openBuyModal(packId = buyPack) {
+async function openBuyModal(packId = buyPack) {
   if (!chatSignedIn) {
-    try { sessionStorage.setItem('chessPendingBuy', packId); } catch (e) { /* без хранилища просто не откроем после входа */ }
+    try { sessionStorage.setItem('chessPendingBuy', packId || ''); } catch (e) { /* без хранилища просто не откроем после входа */ }
     showToast('Войдите, чтобы купить вопросы: они зачисляются на аккаунт');
     openAuthModal();
     return;
   }
-  $id('buyError').classList.add('hidden');
-  $id('buyPayBtn').disabled = false;
-  selectBuyPack(packId === 'q300' ? 'q300' : 'q100');
+  const payBtn = $id('buyPayBtn');
+  const errorEl = $id('buyError');
+  errorEl.classList.add('hidden');
   showModal('buyModal');
+  if (!buyPacks.length) {
+    payBtn.disabled = true;
+    payBtn.textContent = 'Оплатить';
+    try {
+      buyPacks = await loadPacks();
+      renderBuyPacks();
+    } catch (e) {
+      $id('buyPacks').innerHTML = '';
+      errorEl.textContent = 'Не удалось загрузить цены. Проверьте интернет и откройте окно ещё раз.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+  }
+  payBtn.disabled = false;
+  selectBuyPack(packId);
 }
 
 async function startPayment() {
@@ -125,8 +169,9 @@ async function startPayment() {
   selectBuyPack(buyPack);
 }
 
-document.querySelectorAll('.buy-pack').forEach(btn => {
-  btn.addEventListener('click', () => { playSound('ui'); selectBuyPack(btn.dataset.pack); });
+$id('buyPacks').addEventListener('click', (e) => {
+  const btn = e.target.closest('.buy-pack');
+  if (btn) { playSound('ui'); selectBuyPack(btn.dataset.pack); }
 });
 $id('buyPayBtn').addEventListener('click', () => { playSound('ui'); startPayment(); });
 $id('buyCancelBtn').addEventListener('click', () => hideModal('buyModal'));
@@ -153,7 +198,7 @@ function resumePendingBuy() {
   if (!chatSignedIn) return;
   let pending = null;
   try { pending = sessionStorage.getItem('chessPendingBuy'); sessionStorage.removeItem('chessPendingBuy'); } catch (e) { /* нет хранилища */ }
-  if (pending) openBuyModal(pending);
+  if (pending !== null) openBuyModal(pending); // '' — пакет не выбирали, откроется первый
 }
 
 async function refreshChatQuota() {

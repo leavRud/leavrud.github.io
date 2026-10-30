@@ -349,16 +349,9 @@
     <p class="modal-sub">Вопросы ИИ-помощнику зачисляются на аккаунт сразу после оплаты и не сгорают.
       Сначала тратятся 15 бесплатных вопросов в день, затем купленные.</p>
 
-    <div class="buy-packs" role="radiogroup" aria-label="Пакет">
-      <button type="button" class="buy-pack" data-pack="q100" data-price="39" role="radio" aria-checked="false">
-        <span class="buy-pack-name">100 вопросов</span>
-        <span class="buy-pack-price">39 ₽</span>
-      </button>
-      <button type="button" class="buy-pack" data-pack="q300" data-price="99" role="radio" aria-checked="false">
-        <span class="buy-pack-name">300 вопросов</span>
-        <span class="buy-pack-price">99 ₽</span>
-        <span class="buy-pack-note">выгоднее в 1,2 раза</span>
-      </button>
+    <!-- Пакеты и цены приходят с сервера (js/packs.js → функция payments) -->
+    <div id="buyPacks" class="buy-packs" role="radiogroup" aria-label="Пакет">
+      <p class="buy-packs-loading">Загружаем цены…</p>
     </div>
 
     <p class="buy-legal">Оплата картой или через СБП на защищённой странице ЮKassa. Нажимая «Оплатить», вы принимаете
@@ -1018,6 +1011,7 @@
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/theme.js"></script>
+<script src="js/packs.js"></script>
 <script src="js/ai-api.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/loading-screen.js"></script>

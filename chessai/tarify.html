@@ -41,17 +41,10 @@
         <p>15 вопросов ИИ-помощнику каждый день после регистрации. Обновляются в 00:00 по Москве, неиспользованные не переносятся.</p>
         <a class="plan-buy is-secondary" href="./">Начать играть</a>
       </div>
-      <div class="plan is-featured">
-        <span class="plan-name">100 вопросов</span>
-        <span class="plan-price">39 ₽</span>
-        <p>Пакет вопросов ИИ-помощнику. Срок действия не ограничен.</p>
-        <a class="plan-buy" href="./?buy=q100">Купить за 39 ₽</a>
-      </div>
-      <div class="plan">
-        <span class="plan-name">300 вопросов</span>
-        <span class="plan-price">99 ₽</span>
-        <p>Пакет вопросов ИИ-помощнику. Срок действия не ограничен.</p>
-        <a class="plan-buy" href="./?buy=q300">Купить за 99 ₽</a>
+      <!-- Платные пакеты и цены приходят с сервера: см. renderPaidPlans ниже -->
+      <div id="plansStatus" class="plan">
+        <span class="plan-name">Пакеты вопросов</span>
+        <p>Загружаем цены…</p>
       </div>
     </div>
 
@@ -68,12 +61,12 @@
     <h2>Как получить услугу</h2>
     <p>Услуга цифровая и оказывается онлайн на сайте <a href="./">leavrud.github.io/chessai</a>. Физической доставки нет.</p>
     <ol>
-      <li>Нажмите «Купить» у нужного пакета на этой странице или «Купить вопросы» под окном чата на сайте.</li>
+      <li>Нажмите «Купить» у нужного пакета на этой странице или «Купить вопросы» под окном чата или в профиле на сайте.</li>
       <li>Войдите в аккаунт или зарегистрируйтесь, если ещё не вошли.</li>
       <li>Проверьте выбранный пакет, нажмите «Оплатить» и оплатите его банковской картой или через СБП на защищённой странице ЮKassa.
         Данные карты вводятся на стороне ЮKassa и нам не передаются.</li>
       <li>Вопросы зачисляются на баланс вашего аккаунта автоматически, обычно в течение минуты после оплаты.
-        Остаток виден под окном чата.</li>
+        Остаток виден под окном чата и в профиле.</li>
       <li>Чек приходит на email, указанный при оплате.</li>
     </ol>
     <p>Если вопросы не зачислились в течение суток, напишите на <a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a> и укажите email аккаунта и дату оплаты.</p>
@@ -88,5 +81,36 @@
     <span>Email: <a href="mailto:maksimcebakov1@gmail.com">maksimcebakov1@gmail.com</a> · <a href="contacts.html">Контакты и реквизиты</a></span>
   </footer>
 </div>
+<script src="js/packs.js"></script>
+<script>
+// Карточки платных пакетов — из того же списка, по которому сервер берёт оплату.
+(function renderPaidPlans() {
+  var status = document.getElementById('plansStatus');
+  loadPacks().then(function (packs) {
+    packs.forEach(function (pack, i) {
+      var card = document.createElement('div');
+      card.className = 'plan' + (i === 0 ? ' is-featured' : '');
+      var name = document.createElement('span');
+      name.className = 'plan-name';
+      name.textContent = packQuestionsLabel(pack);
+      var price = document.createElement('span');
+      price.className = 'plan-price';
+      price.textContent = formatRub(pack.price);
+      var text = document.createElement('p');
+      var saving = packSavingNote(pack, packs);
+      text.textContent = 'Пакет вопросов ИИ-помощнику. Срок действия не ограничен.' + (saving ? ' Это ' + saving + '.' : '');
+      var buy = document.createElement('a');
+      buy.className = 'plan-buy';
+      buy.href = './?buy=' + encodeURIComponent(pack.id);
+      buy.textContent = 'Купить за ' + formatRub(pack.price);
+      card.append(name, price, text, buy);
+      status.before(card);
+    });
+    status.remove();
+  }).catch(function () {
+    status.querySelector('p').textContent = 'Не удалось загрузить цены. Обновите страницу.';
+  });
+})();
+</script>
 </body>
 </html>
