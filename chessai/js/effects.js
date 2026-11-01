@@ -36,7 +36,8 @@ function animateCapture(square, color = 'red') {
 //   error.wav — ошибка (неверный ход, сбой сети, неверный ввод)
 //   click.wav — клик по интерфейсу
 //   ach.wav   — получено достижение
-//   catch.wav — поймана падающая фигура на главном экране
+//   catch-N.wav — поймана падающая фигура на главном экране, см. playCatchSound()
+const CATCH_SOUNDS = ['catch2', 'catch3', 'catch4', 'catch5', 'catch6', 'catch7', 'catch8', 'catch9', 'catch10'];
 const SOUND_FILES = {
   move: 'assests/step.wav',
   capture: 'assests/step.wav',
@@ -47,8 +48,8 @@ const SOUND_FILES = {
   ui: 'assests/click.wav',
   achievement: 'assests/ach.wav',
   notification: 'assests/notif.wav',
-  catch: 'assests/catch.wav',
 };
+CATCH_SOUNDS.forEach((kind) => { SOUND_FILES[kind] = `assests/catch-${kind.slice(5)}.wav`; });
 
 // Основной путь — Web Audio: файлы декодируются заранее, и звук начинается сразу.
 // <audio> грузит файл при первом запуске, поэтому первый звук опаздывал. Он
@@ -105,7 +106,7 @@ function isSoundKindEnabled(kind) {
   if (kind === 'check') return s.soundCheck;
   if (kind === 'win' || kind === 'lose') return s.soundMate;
   if (kind === 'ui' || kind === 'error' || kind === 'achievement' || kind === 'ach') return s.soundUi;
-  if (kind === 'notification' || kind === 'catch') return s.soundUi;
+  if (kind === 'notification' || CATCH_SOUNDS.includes(kind)) return s.soundUi;
   return false;
 }
 function playBufferedSound(buffer, volume, rate) {
@@ -135,5 +136,12 @@ function playSound(kind, rate = 1) {
     const playPromise = node.play();
     if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
   } catch (e) { /* тихо игнорируем */ }
+}
+// Случайный звук клавиши, но не тот же, что в прошлый раз, и чуть разной высоты
+let lastCatchSound = null;
+function playCatchSound() {
+  const choices = CATCH_SOUNDS.filter(kind => kind !== lastCatchSound);
+  lastCatchSound = choices[Math.floor(Math.random() * choices.length)];
+  playSound(lastCatchSound, 0.96 + Math.random() * 0.08);
 }
 window.playChessSound = playSound;

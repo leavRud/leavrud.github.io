@@ -621,7 +621,7 @@ function onHomeSnowPointerDown(e) {
     }
   }
   if (!best) return;
-  playSound('catch', 0.9 + Math.random() * 0.3); // разная высота, чтобы серия кликов не звучала однообразно
+  playCatchSound();
   homeSnow.vanishing.push({ ...best, at: performance.now() });
   Object.assign(best, makeHomeSnowFlake());
 }
