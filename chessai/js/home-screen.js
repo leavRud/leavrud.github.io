@@ -62,7 +62,7 @@ $id('homePlayText').addEventListener('click', () => {
 let chosenColor = null;
 let chosenLevel = null;
 
-const LEVEL_LABEL = { 8: 'лёгкий', 14: 'средний', 20: 'сложный' };
+const LEVEL_LABEL = { 8: t('лёгкий'), 14: t('средний'), 20: t('сложный') };
 
 // Модалка открывается с готовым выбором (последний цвет и сложность, по
 // умолчанию белые и «Средний»), поэтому «Начать игру» всегда активна.
@@ -85,7 +85,10 @@ function resetDifficultyChoice() {
 function updateStartAiBtn() {
   const btn = $id('startAiGameBtn');
   btn.disabled = !(chosenColor && chosenLevel);
-  btn.textContent = `Начать: ${chosenColor === 'b' ? 'чёрные' : 'белые'}, ${LEVEL_LABEL[chosenLevel] || 'средний'}`;
+  btn.textContent = t('Начать: {color}, {level}', {
+    color: chosenColor === 'b' ? t('чёрные') : t('белые'),
+    level: LEVEL_LABEL[chosenLevel] || LEVEL_LABEL[14],
+  });
 }
 document.querySelectorAll('.color-choice-btn').forEach(btn => {
   btn.addEventListener('click', () => {

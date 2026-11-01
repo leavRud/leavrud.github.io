@@ -108,8 +108,8 @@ function applyAnalysisMode(mode) {
   const desc = $id('analysisModeDesc');
   if (desc) {
     desc.textContent = value === 'weak'
-      ? 'После каждого хода — короткий анализ (глубина ~12), затем движок полностью останавливается. Минимальная нагрузка на процессор.'
-      : 'Infinite Analysis: пока вы думаете над ходом, движок непрерывно анализирует позицию в фоне. Итоговый анализ партии строится почти мгновенно, но нагрузка на процессор повышена.';
+      ? t('После каждого хода — короткий анализ (глубина ~12), затем движок полностью останавливается. Минимальная нагрузка на процессор.')
+      : t('Infinite Analysis: пока вы думаете над ходом, движок непрерывно анализирует позицию в фоне. Итоговый анализ партии строится почти мгновенно, но нагрузка на процессор повышена.');
   }
 }
 
@@ -132,7 +132,7 @@ function resetAutoHintTimer() {
   if (state.game.turn() !== state.playerColor) return;
   autoHintTimer = setTimeout(() => {
     if (!state.isAsking) {
-      $id('chatInput').value = 'Дай короткую подсказку по текущей позиции.';
+      $id('chatInput').value = t('Дай короткую подсказку по текущей позиции.');
       handleAsk();
     }
   }, state.settings.autoHintDelay * 1000);
@@ -201,6 +201,18 @@ function initSettingsPanel() {
       startTimer();
     }
 });
+
+  // Язык: страница перезагружается, поэтому начатая партия будет потеряна
+  document.querySelectorAll('#languageRow .board-style-btn').forEach(el => {
+    el.classList.toggle('is-active', el.dataset.language === uiLang);
+    el.addEventListener('click', () => {
+      if (el.dataset.language === uiLang) return;
+      playSound('ui');
+      const inGame = state.game && !state.isGameOver;
+      if (inGame && !confirm(t('Сменить язык? Страница перезагрузится, текущая партия будет потеряна.'))) return;
+      setLanguage(el.dataset.language);
+    });
+  });
 
   // Звук: чекбоксы
   const soundIds = ['soundMoves', 'soundCaptures', 'soundCheck', 'soundMate', 'soundUi'];
@@ -311,6 +323,6 @@ function initSettingsPanel() {
   // О программе
   $id('aboutLicensesLink').addEventListener('click', (e) => {
     e.preventDefault();
-    showToast('chessboard.js, chess.js и Stockfish распространяются по своим open-source лицензиям (MIT/GPL)');
+    showToast(t('chessboard.js, chess.js и Stockfish распространяются по своим open-source лицензиям (MIT/GPL)'));
   });
 }

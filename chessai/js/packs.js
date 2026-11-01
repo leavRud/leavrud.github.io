@@ -20,13 +20,18 @@ function loadPacks() {
   return packsPromise;
 }
 
+// Тарифы (tarify.html) всегда на русском: там i18n.js не подключён и window.uiLang нет
+const isEnglishUi = () => window.uiLang === 'en';
+const packsLocale = () => (isEnglishUi() ? 'en-US' : 'ru-RU');
+
 function formatRub(price) {
-  return `${Number(price).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`;
+  return `${Number(price).toLocaleString(packsLocale(), { maximumFractionDigits: 2 })} ₽`;
 }
 
 // «100 вопросов», «21 вопрос», «3 вопроса»
 function packQuestionsLabel(pack) {
   const n = pack.questions;
+  if (isEnglishUi()) return `${n} questions`;
   const mod10 = n % 10, mod100 = n % 100;
   const word = mod10 === 1 && mod100 !== 11 ? 'вопрос'
     : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'вопроса' : 'вопросов';
@@ -39,5 +44,6 @@ function packSavingNote(pack, packs) {
   const worst = Math.max(...packs.map((p) => p.price / p.questions));
   const ratio = worst / (pack.price / pack.questions);
   if (ratio < 1.1) return null;
-  return `выгоднее в ${ratio.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} раза`;
+  const times = ratio.toLocaleString(packsLocale(), { maximumFractionDigits: 1 });
+  return isEnglishUi() ? `${times}× better value` : `выгоднее в ${times} раза`;
 }

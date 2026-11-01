@@ -449,6 +449,8 @@ const Achievements = (function () {
       events: ['homeEnemyKill'], check: ({ stats }) => stats.homeEnemiesKilled >= 1000 },
   ];
 
+  ACHIEVEMENTS.forEach((def) => { def.name = t(def.name); def.desc = t(def.desc); });
+
   // Число достижений/открытых достижений без учёта мета-достижений "Коллекционер" —
   // иначе они не смогли бы разблокироваться сами от себя.
   function baseAchievementsCount() { return ACHIEVEMENTS.filter(a => !a.id.startsWith('meta_')).length; }
@@ -498,9 +500,9 @@ const Achievements = (function () {
     el.innerHTML = `
       <div class="achv-toast-icon">${def.icon}</div>
       <div class="achv-toast-body">
-        <div class="achv-toast-title">🏆 Новое достижение</div>
+        <div class="achv-toast-title">🏆 ${t('Новое достижение')}</div>
         <div class="achv-toast-name">${escapeHtmlLocal(def.name)}</div>
-        <div class="achv-toast-desc">${escapeHtmlLocal(def.secret ? 'Секретное достижение открыто' : def.desc)}</div>
+        <div class="achv-toast-desc">${escapeHtmlLocal(def.secret ? t('Секретное достижение открыто') : def.desc)}</div>
       </div>`;
     container.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));

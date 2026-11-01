@@ -7,7 +7,7 @@
 $id('newGameBtn').addEventListener('click', () => {
   playSound('ui');
   if (state.game && !state.isGameOver && state.game.history().length > 0) {
-    if (!confirm('Начать новую игру? Текущая партия будет потеряна.')) return;
+    if (!confirm(t('Начать новую игру? Текущая партия будет потеряна.'))) return;
   }
   resetToModeSelection();
 });
@@ -50,7 +50,7 @@ function initGame() {
   $id('chatLog').innerHTML = '';
   $id('analysisBlock').classList.add('hidden');
   $id('analysisContent').innerHTML = '';
-  $id('requestAnalysisBtn').textContent = 'Разобрать партию';
+  $id('requestAnalysisBtn').textContent = t('Разобрать партию');
   hideModal('resultModal');
   hideConnectionBanner();
   state.gameStartedAt = Date.now();
@@ -76,22 +76,23 @@ function initGame() {
   $('#board').off('click.tap').on('click.tap', '.square-55d63', onSquareTap);
 
   const chatInputEl = $id('chatInput');
+  const playerColorName = state.playerColor === 'w' ? t('белыми') : t('чёрными');
   if (state.mode === 'ai') {
-    $id('modeLabel').textContent = `Против нейросети · вы играете ${state.playerColor === 'w' ? 'белыми' : 'чёрными'}`;
-    $id('chatTitle').textContent = 'Диалог с нейросетью';
-    $id('chatHint').textContent = 'Можно спросить в любой момент партии';
-    chatInputEl.placeholder = 'Спросите о позиции, ходе, угрозах, совете…';
+    $id('modeLabel').textContent = t('Против нейросети · вы играете {color}', { color: playerColorName });
+    $id('chatTitle').textContent = t('Диалог с нейросетью');
+    $id('chatHint').textContent = t('Можно спросить в любой момент партии');
+    chatInputEl.placeholder = t('Спросите о позиции, ходе, угрозах, совете…');
   } else if (state.mode === 'characters' && state.character) {
-    $id('modeLabel').textContent = `Против персонажа: ${state.character.name} · вы играете ${state.playerColor === 'w' ? 'белыми' : 'чёрными'}`;
-    $id('chatTitle').textContent = `Разговор с соперником — ${state.character.name}`;
-    $id('chatHint').textContent = `${state.character.name} — ваш соперник и не даёт подсказок по ходам`;
-    chatInputEl.placeholder = `Скажите что-нибудь ${state.character.name}…`;
-    logSystemChat(`Вы играете против персонажа «${state.character.name}» (≈${state.character.elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.`);
+    $id('modeLabel').textContent = t('Против персонажа: {name} · вы играете {color}', { name: state.character.name, color: playerColorName });
+    $id('chatTitle').textContent = t('Разговор с соперником — {name}', { name: state.character.name });
+    $id('chatHint').textContent = t('{name} — ваш соперник и не даёт подсказок по ходам', { name: state.character.name });
+    chatInputEl.placeholder = t('Скажите что-нибудь {name}…', { name: state.character.name });
+    logSystemChat(t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
   } else {
-    $id('modeLabel').textContent = 'Игра вдвоём за одним ПК';
-    $id('chatTitle').textContent = 'Диалог с нейросетью';
-    $id('chatHint').textContent = 'Нейросеть отвечает только по запросу и не подсказывает сама';
-    chatInputEl.placeholder = 'Спросите о позиции, ходе, угрозах, совете…';
+    $id('modeLabel').textContent = t('Игра вдвоём за одним ПК');
+    $id('chatTitle').textContent = t('Диалог с нейросетью');
+    $id('chatHint').textContent = t('Нейросеть отвечает только по запросу и не подсказывает сама');
+    chatInputEl.placeholder = t('Спросите о позиции, ходе, угрозах, совете…');
   }
   syncAutoHintAvailability();
 
@@ -318,15 +319,15 @@ function renderPlayerBars() {
   const describe = (side) => {
     const king = side === 'w' ? '♔' : '♚';
     if (state.mode === 'friend') {
-      return { king, name: side === 'w' ? 'Белые' : 'Чёрные', meta: side === 'w' ? 'Игрок 1' : 'Игрок 2' };
+      return { king, name: side === 'w' ? t('Белые') : t('Чёрные'), meta: side === 'w' ? t('Игрок 1') : t('Игрок 2') };
     }
     if (side === state.playerColor) {
-      return { king, name: acc?.name || 'Вы', meta: acc ? `Рейтинг ${acc.elo ?? 1200}` : 'Гость' };
+      return { king, name: acc?.name || t('Вы'), meta: acc ? t('Рейтинг {elo}', { elo: acc.elo ?? 1200 }) : t('Гость') };
     }
     if (state.mode === 'characters' && state.character) {
-      return { king, name: state.character.name, meta: `≈${state.character.elo} Эло` };
+      return { king, name: state.character.name, meta: t('≈{elo} Эло', { elo: state.character.elo }) };
     }
-    const label = LEVEL_LABEL[state.skillLevel] || 'уровень ' + state.skillLevel;
+    const label = LEVEL_LABEL[state.skillLevel] || t('уровень {level}', { level: state.skillLevel });
     return { king, name: 'Stockfish', meta: `${label[0].toUpperCase() + label.slice(1)} · ≈${skillLevelToElo(state.skillLevel)}` };
   };
   [[$id('playerBarTop'), topSide], [$id('playerBarBottom'), bottomSide]].forEach(([bar, side]) => {
@@ -394,22 +395,22 @@ function updateStatus() {
   const game = state.game;
   clearCheckHighlight();
   let text;
-  const sideLabel = game.turn() === 'w' ? 'Белые' : 'Чёрные';
+  const sideLabel = game.turn() === 'w' ? t('Белые') : t('Чёрные');
   if (game.in_checkmate()) {
-    text = `Мат! ${sideLabel} получают мат.`;
+    text = t('Мат! {side} получают мат.', { side: sideLabel });
   } else if (game.in_check()) {
-    text = `${sideLabel} под шахом.`;
+    text = t('{side} под шахом.', { side: sideLabel });
     const kingSq = getKingSquare(game.turn());
     if (kingSq) $(`#board .square-${kingSq}`).addClass('highlight-check');
   } else if (game.in_stalemate()) {
-    text = 'Пат.';
+    text = t('Пат.');
   } else if (game.in_draw()) {
-    text = 'Ничья.';
+    text = t('Ничья.');
   } else {
-    text = `Ход: ${sideLabel.toLowerCase()}.`;
-    if (state.mode === 'ai' && game.turn() === state.aiColor) text += ' Нейросеть думает…';
+    text = game.turn() === 'w' ? t('Ход: белые.') : t('Ход: чёрные.');
+    if (state.mode === 'ai' && game.turn() === state.aiColor) text += ` ${t('Нейросеть думает…')}`;
     else if (state.mode === 'characters' && game.turn() === state.aiColor) {
-      text += ` ${state.character ? state.character.name : 'Персонаж'} думает…`;
+      text += ` ${t('{name} думает…', { name: state.character ? state.character.name : t('Персонаж') })}`;
     }
   }
   $id('statusText').textContent = text;
@@ -422,10 +423,10 @@ function updateResignButtonLabel() {
   if (state.isGameOver) { btn.disabled = true; return; }
   btn.disabled = false;
   if (state.mode === 'friend') {
-    const toMove = state.game.turn() === 'w' ? 'белых' : 'чёрных';
-    btn.textContent = `Сдаться (за ${toMove})`;
+    const toMove = state.game.turn() === 'w' ? t('белых') : t('чёрных');
+    btn.textContent = t('Сдаться (за {side})', { side: toMove });
   } else {
-    btn.textContent = 'Сдаться';
+    btn.textContent = t('Сдаться');
   }
 }
 
@@ -470,38 +471,52 @@ function checkGameOver() {
   state.isGameOver = true;
   let text;
   let outcome = 'draw';
+  let reason = 'draw';
   if (game.in_checkmate()) {
+    reason = 'mate';
     const winnerColor = game.turn() === 'w' ? 'b' : 'w';
-    const winner = winnerColor === 'w' ? 'Белые' : 'Чёрные';
-    text = `Мат! Победили ${winner}.`;
+    const winner = winnerColor === 'w' ? t('Белые') : t('Чёрные');
+    text = t('Мат! Победили {winner}.', { winner });
     outcome = winnerColor === state.playerColor ? 'player_win' : 'character_win';
   } else if (game.in_stalemate()) {
-    text = 'Пат. Ничья.';
+    text = t('Пат. Ничья.');
+    reason = 'stalemate';
   } else if (game.in_threefold_repetition()) {
-    text = 'Ничья по троекратному повторению позиции.';
+    text = t('Ничья по троекратному повторению позиции.');
   } else if (game.insufficient_material()) {
-    text = 'Ничья: недостаточно материала для мата.';
+    text = t('Ничья: недостаточно материала для мата.');
   } else if (game.in_draw()) {
-    text = 'Ничья по правилу 50 ходов.';
+    text = t('Ничья по правилу 50 ходов.');
   } else {
-    text = 'Игра окончена.';
+    text = t('Игра окончена.');
+    reason = 'over';
   }
   const achvOutcome = state.mode === 'friend' ? 'draw' : (outcome === 'player_win' ? 'win' : (outcome === 'character_win' ? 'loss' : 'draw'));
   reportAchievementGameEnd(achvOutcome);
-  showResultModal(text, outcome);
+  showResultModal(text, outcome, reason);
   return true;
 }
 
-function resultTitleFor(text, outcome) {
-  if (/Ничья|Пат/.test(text)) return 'Ничья';
-  if (state.mode === 'friend') return 'Партия окончена';
-  if (outcome === 'player_win') return 'Победа!';
-  if (outcome === 'character_win') return 'Поражение';
-  return 'Партия окончена';
+// Чем закончилась партия: reason определяет заголовок и подпись в итоговом окне
+const RESULT_REASON_LABEL = {
+  mate: t('Мат'),
+  resign: t('Сдача'),
+  time: t('Время вышло'),
+  stalemate: t('Пат'),
+  draw: t('Ничья'),
+  over: t('Партия окончена'),
+};
+
+function resultTitleFor(reason, outcome) {
+  if (reason === 'stalemate' || reason === 'draw' || (reason === 'time' && outcome === 'draw')) return t('Ничья');
+  if (state.mode === 'friend') return t('Партия окончена');
+  if (outcome === 'player_win') return t('Победа!');
+  if (outcome === 'character_win') return t('Поражение');
+  return t('Партия окончена');
 }
 
 // Цифры для итога: число ходов, сколько шла партия и сколько фигур взял игрок.
-function renderResultStats(text) {
+function renderResultStats(reason) {
   const plies = state.game ? state.game.history().length : 0;
   const fullMoves = Math.ceil(plies / 2);
   const seconds = state.gameStartedAt ? Math.round((Date.now() - state.gameStartedAt) / 1000) : 0;
@@ -509,35 +524,23 @@ function renderResultStats(text) {
     ? state.capturedByWhite.length + state.capturedByBlack.length
     : (state.playerColor === 'w' ? state.capturedByWhite : state.capturedByBlack).length;
 
-  let reason = 'Партия окончена';
-  if (/^Мат/.test(text)) reason = 'Мат';
-  else if (/сдал/.test(text)) reason = 'Сдача';
-  else if (/по времени|Время вышло/.test(text)) reason = 'Время вышло';
-  else if (/Пат/.test(text)) reason = 'Пат';
-  else if (/Ничья/.test(text)) reason = 'Ничья';
-  $id('resultEyebrow').textContent = `${reason} · ${fullMoves}-й ход`;
+  $id('resultEyebrow').textContent = `${RESULT_REASON_LABEL[reason]} · ${t('{n}-й ход', { n: fullMoves })}`;
   $id('resultStatMoves').textContent = String(fullMoves);
-  $id('resultStatMoves').nextElementSibling.textContent = pluralRu(fullMoves, 'ход', 'хода', 'ходов');
+  $id('resultStatMoves').nextElementSibling.textContent = plural(fullMoves, 'ход', 'хода', 'ходов');
   $id('resultStatTime').textContent = formatTime(seconds);
   $id('resultStatCaptured').textContent = String(myCaptures);
-  const pieces = pluralRu(myCaptures, 'фигура', 'фигуры', 'фигур');
-  $id('resultStatCaptured').nextElementSibling.textContent = state.mode === 'friend' ? `${pieces} взято` : `${pieces} взяли вы`;
+  const pieces = plural(myCaptures, 'фигура', 'фигуры', 'фигур');
+  $id('resultStatCaptured').nextElementSibling.textContent = state.mode === 'friend'
+    ? t('{pieces} взято', { pieces })
+    : t('{pieces} взяли вы', { pieces });
 }
 
-// 1 ход, 2 хода, 5 ходов
-function pluralRu(n, one, few, many) {
-  const n10 = n % 10, n100 = n % 100;
-  if (n10 === 1 && n100 !== 11) return one;
-  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
-  return many;
-}
-
-function showResultModal(text, outcome = 'draw') {
+function showResultModal(text, outcome = 'draw', reason = 'over') {
   if (outcome === 'player_win') playSound('win');
   else if (outcome === 'character_win') playSound('lose');
-  $id('resultTitle').textContent = resultTitleFor(text, outcome);
+  $id('resultTitle').textContent = resultTitleFor(reason, outcome);
   $id('resultText').textContent = text;
-  renderResultStats(text);
+  renderResultStats(reason);
   const charBlock = $id('characterResultBlock');
   if (state.mode === 'characters' && state.character) {
     charBlock.classList.remove('hidden');
@@ -555,13 +558,13 @@ $id('resignBtn').addEventListener('click', () => {
   let text;
   let outcome = 'character_win';
   if (state.mode === 'ai') {
-    text = 'Вы сдались. Победила нейросеть.';
+    text = t('Вы сдались. Победила нейросеть.');
   } else if (state.mode === 'characters') {
-    text = `Вы сдались. Победил(а) ${state.character ? state.character.name : 'персонаж'}.`;
+    text = t('Вы сдались. Победил(а) {name}.', { name: state.character ? state.character.name : t('персонаж') });
   } else {
-    const toMove = state.game.turn() === 'w' ? 'Белые' : 'Чёрные';
-    const winner = state.game.turn() === 'w' ? 'Чёрные' : 'Белые';
-    text = `${toMove} сдались. Победили ${winner}.`;
+    const toMove = state.game.turn() === 'w' ? t('Белые') : t('Чёрные');
+    const winner = state.game.turn() === 'w' ? t('Чёрные') : t('Белые');
+    text = t('{loser} сдались. Победили {winner}.', { loser: toMove, winner });
     outcome = 'draw';
   }
   state.isGameOver = true;
@@ -571,5 +574,5 @@ $id('resignBtn').addEventListener('click', () => {
   stopBackgroundAnalysis();
   const achvOutcome = state.mode === 'friend' ? 'draw' : 'loss';
   reportAchievementGameEnd(achvOutcome);
-  showResultModal(text, outcome);
+  showResultModal(text, outcome, 'resign');
 });

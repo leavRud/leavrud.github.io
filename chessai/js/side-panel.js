@@ -14,12 +14,12 @@
 const SIDE_VIEWS = ['menu', 'profile', 'profile-edit', 'settings', 'achievements', 'stats', 'about'];
 const SIDE_VIEW_TITLES = {
   menu: '',
-  profile: 'Профиль',
-  'profile-edit': 'Редактирование',
-  settings: 'Настройки',
-  achievements: 'Достижения',
-  stats: 'Статистика',
-  about: 'О приложении',
+  profile: t('Профиль'),
+  'profile-edit': t('Редактирование'),
+  settings: t('Настройки'),
+  achievements: t('Достижения'),
+  stats: t('Статистика'),
+  about: t('О приложении'),
 };
 
 const navigationState = { stack: ['menu'] };
@@ -48,7 +48,7 @@ function renderSideView() {
   if (backBtn) {
     const isRoot = navigationState.stack.length <= 1;
     backBtn.textContent = isRoot ? '✕' : '←';
-    backBtn.setAttribute('aria-label', isRoot ? 'Закрыть' : 'Назад');
+    backBtn.setAttribute('aria-label', isRoot ? t('Закрыть') : t('Назад'));
   }
 
   if (view === 'menu') renderMenuProfile();
@@ -64,7 +64,7 @@ function renderAchievementsGrid() {
   if (!container) return;
 
   if (!window.Achievements || typeof window.Achievements.getAchievements !== 'function') {
-    container.innerHTML = '<p class="modal-sub">Модуль достижений недоступен.</p>';
+    container.innerHTML = `<p class="modal-sub">${t('Модуль достижений недоступен.')}</p>`;
     const cards = container.querySelectorAll('.achv-card');
     cards.forEach((card, index) => {
       card.style.opacity = '0';
@@ -100,9 +100,9 @@ function renderAchievementsGrid() {
     const unlocked = window.Achievements.isUnlocked(def.id);
     const hideInfo = def.secret && !unlocked;
     const name = hideInfo ? '???' : def.name;
-    const desc = hideInfo ? 'Секретное достижение' : def.desc;
+    const desc = hideInfo ? t('Секретное достижение') : def.desc;
     const icon = hideInfo ? '🔒' : def.icon;
-    const dateStr = unlocked ? new Date(window.Achievements.getUnlockDate(def.id)).toLocaleDateString('ru-RU') : '';
+    const dateStr = unlocked ? new Date(window.Achievements.getUnlockDate(def.id)).toLocaleDateString(uiLocale) : '';
     let progressHtml = '';
     if (def.progress && !hideInfo) {
       const p = def.progress(stats);
@@ -115,7 +115,7 @@ function renderAchievementsGrid() {
       <div class="achv-card-name">${escapeHtml(name)}</div>
       <div class="achv-card-desc">${escapeHtml(desc)}</div>
       ${progressHtml}
-      ${unlocked ? `<div class="achv-card-date">Получено: ${dateStr}</div>` : ''}
+      ${unlocked ? `<div class="achv-card-date">${t('Получено: {date}', { date: dateStr })}</div>` : ''}
     </div>`;
   }).join('');
 
@@ -200,7 +200,7 @@ function renderProfileView() {
 
   if (acc) {
     avatarEl.textContent = acc.avatar || '♟';
-    nameEl.textContent = acc.name || 'Игрок';
+    nameEl.textContent = acc.name || t('Игрок');
     eloEl.textContent = `${Number.isFinite(acc.elo) ? acc.elo : 1200} Elo`;
     eloEl.classList.remove('hidden');
     if (guestEl) guestEl.classList.add('hidden');
@@ -221,7 +221,7 @@ function renderProfileView() {
     refreshChatQuota();
   } else {
     avatarEl.textContent = '♟';
-    nameEl.textContent = 'Гость';
+    nameEl.textContent = t('Гость');
     eloEl.classList.add('hidden');
     if (statsEl) statsEl.classList.add('hidden');
     if (editBtn) editBtn.classList.add('hidden');
@@ -240,7 +240,7 @@ function openProfileEditModal() {
 }
 function handleProfileEditSave() {
   const acc = getAccount() || { elo: 1200 };
-  const name = ($id('profileEditNameInput').value || '').trim().slice(0, 24) || 'Игрок';
+  const name = ($id('profileEditNameInput').value || '').trim().slice(0, 24) || t('Игрок');
   const activeAvatarBtn = document.querySelector('#profileAvatarPicker .avatar-choice-btn.is-active');
   acc.name = name;
   acc.avatar = activeAvatarBtn ? activeAvatarBtn.dataset.avatar : (acc.avatar || '♟');
@@ -248,7 +248,7 @@ function handleProfileEditSave() {
   saveAccount(acc);
   navigateBack(); // Save -> возвращаемся в Profile (renderProfileView вызовется сам)
   renderMenuProfile();
-  showToast('Профиль обновлён');
+  showToast(t('Профиль обновлён'));
 }
 
 /* ---- Достижения ----
@@ -277,21 +277,21 @@ function renderStatsView() {
     const hasPlayed = stats && Number.isFinite(stats.gamesPlayed) && stats.gamesPlayed > 0;
     body.innerHTML = hasPlayed
       ? renderStatsAsList(stats)
-      : '<p class="modal-sub">Пока нет статистики — сыграйте первую партию, чтобы увидеть свой прогресс.</p>';
+      : `<p class="modal-sub">${t('Пока нет статистики — сыграйте первую партию, чтобы увидеть свой прогресс.')}</p>`;
   }
 }
 
 const STAT_LABELS_RU = {
-  gamesPlayed: 'Сыграно партий',
-  winsTotal: 'Побед всего',
-  currentWinStreak: 'Текущая серия побед',
-  bestWinStreak: 'Лучшая серия побед',
-  analysesCount: 'Проведено анализов партий',
-  charactersPlayed: 'Персонажей сыграно',
-  aiWinStreak: 'Побед подряд над Stockfish',
-  modesPlayed: 'Опробовано режимов игры',
-  checkTypesGiven: 'Видов шаха объявлено',
-  homeEnemiesKilled: 'Побеждено на главном экране',
+  gamesPlayed: t('Сыграно партий'),
+  winsTotal: t('Побед всего'),
+  currentWinStreak: t('Текущая серия побед'),
+  bestWinStreak: t('Лучшая серия побед'),
+  analysesCount: t('Проведено анализов партий'),
+  charactersPlayed: t('Персонажей сыграно'),
+  aiWinStreak: t('Побед подряд над Stockfish'),
+  modesPlayed: t('Опробовано режимов игры'),
+  checkTypesGiven: t('Видов шаха объявлено'),
+  homeEnemiesKilled: t('Побеждено на главном экране'),
 };
 function humanizeStatKey(key) {
   if (STAT_LABELS_RU[key]) return STAT_LABELS_RU[key];
@@ -310,7 +310,7 @@ function renderStatsAsList(stats) {
       rows.push(`<div class="settings-row"><span class="settings-row-label">${escapeHtml(humanizeStatKey(key))}</span><span>${escapeHtml(String(val))}</span></div>`);
     }
   });
-  return rows.length ? rows.join('') : '<p class="modal-sub">Пока нет данных.</p>';
+  return rows.length ? rows.join('') : `<p class="modal-sub">${t('Пока нет данных.')}</p>`;
 }
 
 /* ---- Мини-график Elo (SVG, раскрывается под ELO-хиро) ---- */
@@ -347,7 +347,7 @@ function renderEloChartCard(acc) {
   if (!wrap) return;
   const history = acc ? ensureEloHistory(acc) : null;
   if (!history || history.length < 2) {
-    wrap.innerHTML = '<p class="modal-sub stats-elo-chart-empty">График появится после первой рейтинговой партии.</p>';
+    wrap.innerHTML = `<p class="modal-sub stats-elo-chart-empty">${t('График появится после первой рейтинговой партии.')}</p>`;
     return;
   }
   wrap.innerHTML = buildEloChartSvg(history) + '<div class="elo-tooltip" id="statsEloTooltip" hidden></div>';

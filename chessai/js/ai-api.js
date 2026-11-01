@@ -16,7 +16,7 @@ async function provodChat(messages, { temperature = 0.6, kind = 'question' } = {
   if (error) {
     let code = null;
     try { code = (await error.context?.json())?.error ?? null; } catch (e) { /* тело ответа не JSON */ }
-    const err = new Error(`Provod.ai ошибка: ${code || error.message}`);
+    const err = new Error(t('Provod.ai ошибка: {error}', { error: code || error.message }));
     err.code = code;
     throw err;
   }
@@ -34,21 +34,21 @@ function renderChatQuota(quota) {
   const el = $id('chatQuota');
   if (!el) return;
   if (!chatSignedIn) {
-    el.innerHTML = 'Войдите, чтобы задавать вопросы нейросети: 15 вопросов в день бесплатно. ' +
-      '<button type="button" class="chat-quota-login">Войти</button>';
+    el.innerHTML = `${t('Войдите, чтобы задавать вопросы нейросети: 15 вопросов в день бесплатно.')} ` +
+      `<button type="button" class="chat-quota-login">${t('Войти')}</button>`;
     el.classList.remove('is-empty');
     return;
   }
   if (!quota) { el.textContent = ''; return; }
   const left = Math.max(0, quota.daily_limit - quota.daily_used);
   const extra = Math.floor(Number(quota.bonus_left) || 0);
-  let text = `Осталось ${left} из ${quota.daily_limit} вопросов на сегодня`;
-  if (extra > 0) text += ` · ещё ${extra} в запасе`;
+  let text = t('Осталось {left} из {limit} вопросов на сегодня', { left, limit: quota.daily_limit });
+  if (extra > 0) text += t(' · ещё {extra} в запасе', { extra });
   el.textContent = text + ' ';
   const buy = document.createElement('button');
   buy.type = 'button';
   buy.className = 'chat-quota-buy';
-  buy.textContent = 'Купить вопросы';
+  buy.textContent = t('Купить вопросы');
   el.appendChild(buy);
   el.classList.toggle('is-empty', left === 0 && extra === 0);
 }
@@ -63,7 +63,7 @@ function renderProfileQuota() {
   if (!quota) return;
   const left = Math.max(0, quota.daily_limit - quota.daily_used);
   const extra = Math.floor(Number(quota.bonus_left) || 0);
-  $id('profileQuotaDaily').textContent = `${left} из ${quota.daily_limit}`;
+  $id('profileQuotaDaily').textContent = t('{left} из {limit}', { left, limit: quota.daily_limit });
   $id('profileQuotaBar').style.width = `${quota.daily_limit ? (left / quota.daily_limit) * 100 : 0}%`;
   $id('profileQuotaExtra').textContent = extra;
   box.classList.toggle('is-empty', left === 0 && extra === 0);
@@ -114,14 +114,14 @@ function selectBuyPack(packId) {
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-checked', String(active));
   });
-  $id('buyPayBtn').textContent = `Оплатить ${formatRub(pack.price)}`;
+  $id('buyPayBtn').textContent = t('Оплатить {price}', { price: formatRub(pack.price) });
 }
 
 // Покупка только после входа: вопросы зачисляются на аккаунт.
 async function openBuyModal(packId = buyPack) {
   if (!chatSignedIn) {
     try { sessionStorage.setItem('chessPendingBuy', packId || ''); } catch (e) { /* без хранилища просто не откроем после входа */ }
-    showToast('Войдите, чтобы купить вопросы: они зачисляются на аккаунт');
+    showToast(t('Войдите, чтобы купить вопросы: они зачисляются на аккаунт'));
     openAuthModal();
     return;
   }
@@ -131,13 +131,13 @@ async function openBuyModal(packId = buyPack) {
   showModal('buyModal');
   if (!buyPacks.length) {
     payBtn.disabled = true;
-    payBtn.textContent = 'Оплатить';
+    payBtn.textContent = t('Оплатить');
     try {
       buyPacks = await loadPacks();
       renderBuyPacks();
     } catch (e) {
       $id('buyPacks').innerHTML = '';
-      errorEl.textContent = 'Не удалось загрузить цены. Проверьте интернет и откройте окно ещё раз.';
+      errorEl.textContent = t('Не удалось загрузить цены. Проверьте интернет и откройте окно ещё раз.');
       errorEl.classList.remove('hidden');
       return;
     }
@@ -150,7 +150,7 @@ async function startPayment() {
   const btn = $id('buyPayBtn');
   const errorEl = $id('buyError');
   btn.disabled = true;
-  btn.textContent = 'Переходим к оплате…';
+  btn.textContent = t('Переходим к оплате…');
   errorEl.classList.add('hidden');
   const { data, error } = await sb.functions.invoke('payments/create', { body: { pack_id: buyPack } });
   if (!error && data?.confirmation_url) {
@@ -160,10 +160,10 @@ async function startPayment() {
   let code = null;
   try { code = (await error?.context?.json())?.error ?? null; } catch (e) { /* тело ответа не JSON */ }
   errorEl.textContent = code === 'PAYMENTS_NOT_CONFIGURED'
-    ? 'Оплата подключается и скоро заработает. Пока можно пользоваться бесплатными вопросами.'
+    ? t('Оплата подключается и скоро заработает. Пока можно пользоваться бесплатными вопросами.')
     : code === 'AUTH_REQUIRED'
-      ? 'Сессия истекла — войдите заново.'
-      : 'Не удалось перейти к оплате. Попробуйте ещё раз через минуту.';
+      ? t('Сессия истекла — войдите заново.')
+      : t('Не удалось перейти к оплате. Попробуйте ещё раз через минуту.');
   errorEl.classList.remove('hidden');
   btn.disabled = false;
   selectBuyPack(buyPack);
@@ -187,7 +187,7 @@ function handlePaymentParams() {
   if (!buy && !paid) return;
   history.replaceState(null, '', location.pathname);
   if (paid) {
-    showToast('Спасибо за оплату! Вопросы начислятся в течение минуты');
+    showToast(t('Спасибо за оплату! Вопросы начислятся в течение минуты'));
     setTimeout(refreshChatQuota, 5000);
   }
   if (buy) openBuyModal(buy);
@@ -218,14 +218,14 @@ document.addEventListener('click', (e) => {
 function chatErrorMessage(error) {
   switch (error?.code) {
     case 'AUTH_REQUIRED':
-      return 'Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 15 вопросов в день.';
+      return t('Чтобы спросить нейросеть, войдите в аккаунт. Это бесплатно: 15 вопросов в день.');
     case 'DAILY_LIMIT_REACHED':
-      return 'Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве. Можно купить пакет вопросов — кнопка «Купить вопросы» под чатом, а бонусные вопросы даются за достижения.';
+      return t('Вопросы на сегодня закончились. Новые 15 появятся в полночь по Москве. Можно купить пакет вопросов — кнопка «Купить вопросы» под чатом, а бонусные вопросы даются за достижения.');
     case 'GAME_LIMIT_REACHED':
-      return 'Персонажи на сегодня устали: дневной лимит игровых запросов исчерпан. Попробуйте завтра.';
+      return t('Персонажи на сегодня устали: дневной лимит игровых запросов исчерпан. Попробуйте завтра.');
     case 'REQUEST_TOO_LONG':
-      return 'Слишком длинный запрос. Начните новую партию или задайте вопрос короче.';
+      return t('Слишком длинный запрос. Начните новую партию или задайте вопрос короче.');
     default:
-      return 'Нейросеть сейчас не отвечает. Попробуйте ещё раз через минуту.';
+      return t('Нейросеть сейчас не отвечает. Попробуйте ещё раз через минуту.');
   }
 }

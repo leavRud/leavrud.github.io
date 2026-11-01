@@ -36,6 +36,7 @@ function animateCapture(square, color = 'red') {
 //   error.wav — ошибка (неверный ход, сбой сети, неверный ввод)
 //   click.wav — клик по интерфейсу
 //   ach.wav   — получено достижение
+//   catch.wav — поймана падающая фигура на главном экране
 const SOUND_FILES = {
   move: 'assests/step.wav',
   capture: 'assests/step.wav',
@@ -46,7 +47,40 @@ const SOUND_FILES = {
   ui: 'assests/click.wav',
   achievement: 'assests/ach.wav',
   notification: 'assests/notif.wav',
+  catch: 'assests/catch.wav',
 };
+
+// Основной путь — Web Audio: файлы декодируются заранее, и звук начинается сразу.
+// <audio> грузит файл при первом запуске, поэтому первый звук опаздывал. Он
+// остаётся запасным вариантом — например, на file:// fetch не работает.
+const SoundContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = SoundContext ? new SoundContext({ latencyHint: 'interactive' }) : null;
+const soundBuffers = {}; // kind -> декодированный звук
+
+function preloadSounds() {
+  if (!audioCtx) return;
+  const decoded = {}; // один файл у нескольких событий декодируем один раз
+  Object.entries(SOUND_FILES).forEach(([kind, src]) => {
+    decoded[src] = decoded[src] || fetch(src)
+      .then(res => res.arrayBuffer())
+      .then(data => audioCtx.decodeAudioData(data));
+    decoded[src].then(buffer => { soundBuffers[kind] = buffer; }).catch(() => {});
+  });
+}
+
+// Браузер разрешает звук только после действия пользователя. Будим контекст уже
+// на нажатии, а не на отпускании, чтобы первый клик прозвучал без задержки.
+const AUDIO_UNLOCK_EVENTS = ['pointerdown', 'touchend', 'keydown', 'click'];
+function unlockAudio() {
+  audioCtx.resume().then(() => {
+    AUDIO_UNLOCK_EVENTS.forEach(name => window.removeEventListener(name, unlockAudio, true));
+  }).catch(() => {});
+}
+if (audioCtx) {
+  AUDIO_UNLOCK_EVENTS.forEach(name => window.addEventListener(name, unlockAudio, true));
+  preloadSounds();
+}
+
 const soundElCache = {};
 function getSoundTemplate(kind) {
   const src = SOUND_FILES[kind];
@@ -71,17 +105,33 @@ function isSoundKindEnabled(kind) {
   if (kind === 'check') return s.soundCheck;
   if (kind === 'win' || kind === 'lose') return s.soundMate;
   if (kind === 'ui' || kind === 'error' || kind === 'achievement' || kind === 'ach') return s.soundUi;
-  if (kind === 'notification') return s.soundUi;
+  if (kind === 'notification' || kind === 'catch') return s.soundUi;
   return false;
 }
-function playSound(kind) {
+function playBufferedSound(buffer, volume, rate) {
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = rate;
+  const gain = audioCtx.createGain();
+  gain.gain.value = volume;
+  source.connect(gain).connect(audioCtx.destination);
+  source.start();
+}
+// rate — скорость воспроизведения: заодно меняет высоту звука
+function playSound(kind, rate = 1) {
   if (kind === 'ach') kind = 'achievement';
   if (!isSoundKindEnabled(kind)) return;
+  const volume = clamp(state.settings.volume / 100, 0, 1);
+  if (soundBuffers[kind]) {
+    playBufferedSound(soundBuffers[kind], volume, rate);
+    return;
+  }
   const template = getSoundTemplate(kind);
   if (!template) return;
   try {
     const node = template.cloneNode(true);
-    node.volume = clamp(state.settings.volume / 100, 0, 1);
+    node.volume = volume;
+    node.playbackRate = rate;
     const playPromise = node.play();
     if (playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
   } catch (e) { /* тихо игнорируем */ }

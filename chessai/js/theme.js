@@ -15,10 +15,7 @@ function applyTheme(theme) {
   const icon = $id('settingsThemeIcon');
   const label = $id('settingsThemeLabel');
   if (icon) icon.textContent = theme === 'dark' ? '🌙' : '☀️';
-  if (label) {
-    const i18nKey = 'settings.appearance.' + (theme === 'dark' ? 'dark' : 'light');
-    label.textContent = window.t ? window.t(i18nKey) : (theme === 'dark' ? 'Тёмная' : 'Светлая');
-  }
+  if (label) label.textContent = theme === 'dark' ? t('Тёмная') : t('Светлая');
 }
 (function initTheme() {
   const saved = localStorage.getItem('chessTheme') || 'dark';

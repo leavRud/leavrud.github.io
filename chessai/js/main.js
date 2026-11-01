@@ -99,20 +99,20 @@ function startTimer() {
 
 function handleTimeOut(color) {
   if (state.isGameOver) return;
-  const loser = color === 'w' ? 'Белые' : 'Чёрные';
+  const loser = color === 'w' ? t('Белые') : t('Чёрные');
   let text;
   let outcome = 'draw';
   if (state.mode === 'friend') {
-    const winner = color === 'w' ? 'Чёрные' : 'Белые';
-    text = `${loser} проиграли по времени. Победили ${winner}.`;
+    const winner = color === 'w' ? t('Чёрные') : t('Белые');
+    text = t('{loser} проиграли по времени. Победили {winner}.', { loser, winner });
     outcome = 'character_win';
   } else {
     const playerColor = state.playerColor;
     if (color === playerColor) {
-      text = `Вы проиграли по времени. Победил соперник.`;
+      text = t('Вы проиграли по времени. Победил соперник.');
       outcome = 'character_win';
     } else {
-      text = `Время вышло у соперника. Ничья?`;
+      text = t('Время вышло у соперника. Ничья?');
       outcome = 'draw';
     }
   }
@@ -121,7 +121,7 @@ function handleTimeOut(color) {
   updateResignButtonLabel();
   const achvOutcome = state.mode === 'friend' ? 'draw' : (outcome === 'character_win' ? 'loss' : 'draw');
   reportAchievementGameEnd(achvOutcome);
-  showResultModal(text, outcome);
+  showResultModal(text, outcome, 'time');
 }
 
 function resetTimers() {

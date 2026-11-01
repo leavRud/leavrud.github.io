@@ -71,7 +71,7 @@ function initAuth() {
     tabRegister.setAttribute('aria-selected', String(!isLogin));
     loginForm.classList.toggle('hidden', !isLogin);
     registerForm.classList.toggle('hidden', isLogin);
-    $id('authModalTitle').textContent = isLogin ? 'Вход в аккаунт' : 'Регистрация';
+    $id('authModalTitle').textContent = isLogin ? t('Вход в аккаунт') : t('Регистрация');
     clearAuthErrors();
   };
 
@@ -102,7 +102,7 @@ function initAuth() {
   if (registerForm) registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleRegisterSubmit(); });
 
   $id('authForgotBtn').addEventListener('click', () => {
-    showToast('Восстановление пароля скоро будет доступно');
+    showToast(t('Восстановление пароля скоро будет доступно'));
   });
 
   // Вход через Google/VK пока не реализован — заглушка с уведомлением.
@@ -157,7 +157,7 @@ async function signInWithOAuthProvider(provider) {
     provider,
     options: { redirectTo: window.location.href.split('#')[0].split('?')[0] } // полный текущий путь, а не только домен — важно для GitHub Pages, где сайт живёт в подпапке /reponame/
   });
-  if (error) showToast('Не удалось начать вход через ' + provider);
+  if (error) showToast(t('Не удалось начать вход через {provider}', { provider }));
 }
 
 function clearAuthErrors() {
@@ -196,23 +196,23 @@ async function handleLoginSubmit() {
   let valid = true;
 
   if (!email || !EMAIL_RE.test(email)) {
-    setFieldError('authLoginEmail', 'authLoginEmailError', 'Введите корректный email');
+    setFieldError('authLoginEmail', 'authLoginEmailError', t('Введите корректный email'));
     valid = false;
   }
   if (!password) {
-    setFieldError('authLoginPassword', 'authLoginPasswordError', 'Введите пароль');
+    setFieldError('authLoginPassword', 'authLoginPasswordError', t('Введите пароль'));
     valid = false;
   }
   if (!valid) return;
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) { setFieldError('authLoginPassword', 'authLoginPasswordError', 'Неверный email или пароль'); return; }
+  if (error) { setFieldError('authLoginPassword', 'authLoginPasswordError', t('Неверный email или пароль')); return; }
 
   const acc = await fetchProfileFromSupabase(data.user.id);
   hideModal('authModal');
   renderMenuProfile();
   if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();
-  showToast(`С возвращением, ${acc ? acc.name : ''}!`);
+  showToast(t('С возвращением, {name}!', { name: acc ? acc.name : '' }));
 }
 
 async function handleRegisterSubmit() {
@@ -224,19 +224,19 @@ async function handleRegisterSubmit() {
   let valid = true;
 
   if (!name) {
-    setFieldError('authRegisterName', 'authRegisterNameError', 'Введите имя');
+    setFieldError('authRegisterName', 'authRegisterNameError', t('Введите имя'));
     valid = false;
   }
   if (!email || !EMAIL_RE.test(email)) {
-    setFieldError('authRegisterEmail', 'authRegisterEmailError', 'Введите корректный email');
+    setFieldError('authRegisterEmail', 'authRegisterEmailError', t('Введите корректный email'));
     valid = false;
   }
   if (!password || password.length < 8) {
-    setFieldError('authRegisterPassword', 'authRegisterPasswordError', 'Минимум 8 символов');
+    setFieldError('authRegisterPassword', 'authRegisterPasswordError', t('Минимум 8 символов'));
     valid = false;
   }
   if (password2 !== password || !password2) {
-    setFieldError('authRegisterPassword2', 'authRegisterPassword2Error', 'Пароли не совпадают');
+    setFieldError('authRegisterPassword2', 'authRegisterPassword2Error', t('Пароли не совпадают'));
     valid = false;
   }
   if (!valid) return;
@@ -253,7 +253,7 @@ async function handleRegisterSubmit() {
   hideModal('authModal');
   renderMenuProfile();
   if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();
-  showToast(`Добро пожаловать, ${name}!`);
+  showToast(t('Добро пожаловать, {name}!', { name }));
 }
 
 /* ---- Профиль (view внутри панели) ---- */
@@ -324,7 +324,7 @@ function initStatsView() {
     const { n, elo, delta } = pointEl.dataset;
     const d = Number(delta);
     const sign = d > 0 ? '+' : (d < 0 ? '' : '±');
-    tip.innerHTML = `Партия #${n}<br>${elo} Elo<br>${sign}${d}`;
+    tip.innerHTML = `${t('Партия #{n}', { n })}<br>${elo} Elo<br>${sign}${d}`;
     tip.hidden = false;
     const match = pointEl.getAttribute('transform').match(/[-\d.]+/g);
     const cx = parseFloat(match[0]);
@@ -354,7 +354,7 @@ const FEEDBACK_TYPES = ['bug', 'suggestion', 'question', 'other'];
 function collectFeedbackMetadata() {
   return {
     theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-    language: 'ru',
+    language: uiLang,
     accent: state.settings.accent,
     boardStyle: state.settings.boardStyle,
     mode: state.mode || null,
@@ -382,7 +382,7 @@ function setFeedbackLoading(loading) {
   const btn = $id('feedbackSubmitBtn');
   if (!btn) return;
   btn.disabled = loading;
-  btn.textContent = loading ? 'Отправка…' : 'Отправить';
+  btn.textContent = loading ? t('Отправка…') : t('Отправить');
 }
 
 function resetFeedbackForm() {
@@ -429,17 +429,17 @@ async function submitFeedback() {
   const contact = (contactEl.value || '').trim();
 
   if (!message) {
-    showFeedbackFieldError('feedbackMessageError', 'Опишите проблему, предложение или вопрос.');
+    showFeedbackFieldError('feedbackMessageError', t('Опишите проблему, предложение или вопрос.'));
     messageEl.focus();
     return;
   }
   if (message.length > 2000) {
-    showFeedbackFieldError('feedbackMessageError', 'Сообщение слишком длинное (максимум 2000 символов).');
+    showFeedbackFieldError('feedbackMessageError', t('Сообщение слишком длинное (максимум 2000 символов).'));
     messageEl.focus();
     return;
   }
   if (contact.length > 120) {
-    showFeedbackFieldError('feedbackContactError', 'Слишком длинный контакт (максимум 120 символов).');
+    showFeedbackFieldError('feedbackContactError', t('Слишком длинный контакт (максимум 120 символов).'));
     contactEl.focus();
     return;
   }
@@ -469,7 +469,7 @@ async function submitFeedback() {
     }, 3000);
   } catch (err) {
     console.error('Не удалось отправить обратную связь:', err);
-    showFeedbackError('Не удалось отправить сообщение. Попробуйте ещё раз.');
+    showFeedbackError(t('Не удалось отправить сообщение. Попробуйте ещё раз.'));
     setFeedbackLoading(false);
   }
 }
@@ -525,7 +525,7 @@ function initAboutView() {
   if (licensesLink) {
     licensesLink.addEventListener('click', (e) => {
       e.preventDefault();
-      showToast('chessboard.js, chess.js и Stockfish распространяются по своим open-source лицензиям (MIT/GPL)');
+      showToast(t('chessboard.js, chess.js и Stockfish распространяются по своим open-source лицензиям (MIT/GPL)'));
     });
   }
 

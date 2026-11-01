@@ -12,7 +12,7 @@ const charState = {
 function openCharacterSetup() {
   // Персонажей ведёт нейросеть, а она доступна только после входа.
   if (!chatSignedIn) {
-    showToast('Войдите, чтобы играть против персонажей: ими управляет нейросеть');
+    showToast(t('Войдите, чтобы играть против персонажей: ими управляет нейросеть'));
     openAuthModal();
     return;
   }
@@ -77,7 +77,7 @@ $id('charCreateBtn').addEventListener('click', () => {
   if (charState.activeTab === 'name') {
     const value = $id('charNameInput').value.trim();
     if (!value) {
-      errEl.textContent = 'Введите имя персонажа.';
+      errEl.textContent = t('Введите имя персонажа.');
       errEl.classList.remove('hidden');
       playSound('error');
       return;
@@ -86,7 +86,7 @@ $id('charCreateBtn').addEventListener('click', () => {
   } else {
     const value = $id('charDescInput').value.trim();
     if (!value) {
-      errEl.textContent = 'Опишите вашего персонажа.';
+      errEl.textContent = t('Опишите вашего персонажа.');
       errEl.classList.remove('hidden');
       playSound('error');
       return;
@@ -142,7 +142,7 @@ async function runCharacterGeneration(input) {
     setCharCardLoading(false);
     $id('characterCardBody').classList.add('hidden');
     const errEl = $id('charCardError');
-    errEl.textContent = 'Не удалось создать персонажа: ' + error.message + '. Нажмите «Перегенерировать», чтобы попробовать снова.';
+    errEl.textContent = t('Не удалось создать персонажа: {error}. Нажмите «Перегенерировать», чтобы попробовать снова.', { error: error.message });
     errEl.classList.remove('hidden');
     playSound('error');
   }
@@ -167,7 +167,7 @@ function buildCharacterGenSystemPrompt() {
   "elo": число примерно от 400 до 2800,
   "tone": "манера общения персонажа, коротко",
   }
-  Все текстовые поля — на русском языке. Придумай образ ярко и с характером. 
+  Все текстовые поля — ${AI_LANGUAGE}. Придумай образ ярко и с характером. 
   Если дано известное имя, опирайся на известные о нём черты и адаптируй их под шахматный стиль и манеру речи.
   Если дано произвольное описание — придумай персонажа с нуля строго по этому описанию, включая подходящее имя.
   Числовые черты должны логично соответствовать описанию.`;
@@ -186,13 +186,13 @@ function normalizeCharacterProfile(p, input) {
     const n = parseInt(v, 10);
     return Number.isFinite(n) ? clamp(n, min, max) : def;
   };
-  const fallbackName = input.type === 'name' ? input.value : 'Загадочный соперник';
+  const fallbackName = input.type === 'name' ? input.value : t('Загадочный соперник');
   const name = String(p.name || fallbackName).trim().slice(0, 40) || fallbackName;
   return {
     name,
-    shortDescription: String(p.shortDescription || '').trim().slice(0, 180) || 'Загадочный противник со своим стилем игры.',
-    style: String(p.style || '').trim().slice(0, 320) || 'Играет непредсказуемо, полагаясь на интуицию.',
-    openings: String(p.openings || '').trim().slice(0, 160) || 'Разные дебюты.',
+    shortDescription: String(p.shortDescription || '').trim().slice(0, 180) || t('Загадочный противник со своим стилем игры.'),
+    style: String(p.style || '').trim().slice(0, 320) || t('Играет непредсказуемо, полагаясь на интуицию.'),
+    openings: String(p.openings || '').trim().slice(0, 160) || t('Разные дебюты.'),
     aggression: clampNum(p.aggression, 0, 100, 50),
     combination: clampNum(p.combination, 0, 100, 50),
     sacrifice: clampNum(p.sacrifice, 0, 100, 30),
@@ -201,7 +201,7 @@ function normalizeCharacterProfile(p, input) {
     endgame: clampNum(p.endgame, 0, 100, 50),
     drawishness: clampNum(p.drawishness, 0, 100, 30),
     elo: clampNum(p.elo, 500, 2900, 1400),
-    tone: String(p.tone || '').trim().slice(0, 160) || 'Сдержанная, немногословная.',
+    tone: String(p.tone || '').trim().slice(0, 160) || t('Сдержанная, немногословная.'),
   };
 }
 
@@ -218,7 +218,7 @@ async function generateCharacterProfile(input) {
   try {
     profile = JSON.parse(extractJson(raw));
   } catch (e) {
-    throw new Error('не удалось разобрать ответ нейросети');
+    throw new Error(t('не удалось разобрать ответ нейросети'));
   }
   return normalizeCharacterProfile(profile, input);
 }
@@ -231,21 +231,21 @@ function eloToSkillLevel(elo) {
 /* ---- Отрисовка карточки персонажа ---- */
 function traitLevelLabel(value) {
   const v = clamp(value, 0, 100);
-  if (v < 20) return 'очень низкая';
-  if (v < 40) return 'низкая';
-  if (v < 60) return 'средняя';
-  if (v < 80) return 'высокая';
-  return 'очень высокая';
+  if (v < 20) return t('очень низкая');
+  if (v < 40) return t('низкая');
+  if (v < 60) return t('средняя');
+  if (v < 80) return t('высокая');
+  return t('очень высокая');
 }
 
 function eloDifficultyLabel(elo) {
   const e = clamp(elo, 500, 2900);
-  if (e < 900) return 'новичок';
-  if (e < 1200) return 'любитель';
-  if (e < 1600) return 'уверенный игрок';
-  if (e < 2000) return 'кандидат в мастера';
-  if (e < 2400) return 'мастер';
-  return 'гроссмейстер';
+  if (e < 900) return t('новичок');
+  if (e < 1200) return t('любитель');
+  if (e < 1600) return t('уверенный игрок');
+  if (e < 2000) return t('кандидат в мастера');
+  if (e < 2400) return t('мастер');
+  return t('гроссмейстер');
 }
 
 function charBarRow(label, value) {
@@ -267,12 +267,12 @@ function renderCharacterCard(profile) {
   const eloLabel = eloDifficultyLabel(profile.elo);
   $id('charCardElo').textContent = `${eloLabel.charAt(0).toUpperCase()}${eloLabel.slice(1)}\n≈${profile.elo} Elo`;
   $id('charCardBars').innerHTML = [
-    charBarRow('Агрессия', profile.aggression),
-    charBarRow('Тактика', profile.combination),
-    charBarRow('Жертвы', profile.sacrifice),
-    charBarRow('Осторожность', profile.caution),
-    charBarRow('Эндшпиль', profile.endgame),
+    charBarRow(t('Агрессия'), profile.aggression),
+    charBarRow(t('Тактика'), profile.combination),
+    charBarRow(t('Жертвы'), profile.sacrifice),
+    charBarRow(t('Осторожность'), profile.caution),
+    charBarRow(t('Эндшпиль'), profile.endgame),
   ].join('');
   $id('charCardStyle').textContent = profile.style;
-  $id('charCardTone').textContent = profile.openings ? `Дебюты: ${profile.openings}` : '';
+  $id('charCardTone').textContent = profile.openings ? t('Дебюты: {openings}', { openings: profile.openings }) : '';
 }

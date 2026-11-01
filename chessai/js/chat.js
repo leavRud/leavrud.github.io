@@ -14,11 +14,11 @@ function buildChatSystemPrompt() {
   if (state.mode === 'characters' && state.character) {
     const c = state.character;
   return `Ты — ${c.name}, шахматный соперник. Твой стиль: ${c.style}. Манера: ${c.tone}.Тебе будут присылать позицию
-  и историю ходов. Отвечай по-русски от первого лица, 
+  и историю ходов. Отвечай ${AI_LANGUAGE} от первого лица, 
   кратко (1-3 предложения). Никогда не давай подсказок по ходам, не анализируй позицию в пользу игрока. 
   Если просят совета — откажи в характере. Без markdown.`;
 }
-  return `Ты — шахматный ассистент внутри приложения. Общайся с игроком по-русски. ${lengthRule}
+  return `Ты — шахматный ассистент внутри приложения. Общайся с игроком ${AI_LANGUAGE}. ${lengthRule}
 Тебе будут присылать текущую позицию в FEN, историю ходов (PGN), готовый анализ Stockfish (лучший ход, оценку, глубину, варианты) и вопрос игрока.
 Stockfish — единственный источник объективно лучшего хода и оценки позиции. Ты НЕ придумываешь и не подбираешь лучший ход самостоятельно: если в сообщении есть блок STOCKFISH, при вопросах «какой ход лучше» называй именно bestMove оттуда (или один из ALTERNATIVES) и объясняй его человеческим языком. Если блока STOCKFISH нет — прямо скажи, что анализ ещё не готов, вместо того чтобы гадать самому.
 Отвечай на конкретный вопрос: подсказки по позиции, угрозы, оценка ходов, стратегические советы. Не давай длинных планов — только одну-две идеи.
@@ -97,7 +97,7 @@ async function buildChatContextMessage(question) {
   const sideLabel = game.turn() === 'w' ? 'белые' : 'чёрные';
   const pgn = game.pgn() || '—';
   const isCharacterMode = state.mode === 'characters';
-  const asksForMove = /куда|какой ход|сходить|посоветуй ход|что делать|мой ход|подскажи|совет|как сыграть/i.test(question);
+  const asksForMove = /куда|какой ход|сходить|посоветуй ход|что делать|мой ход|подскажи|совет|как сыграть|best move|which move|what move|my move|what should i|what do i|hint|advice|advise|suggest/i.test(question);
   let extra = '';
   let sfBlock = '';
   let lastMoveLossBlock = '';
@@ -202,7 +202,7 @@ function logSystemChat(text) {
 function setAskLoading(isLoading) {
   state.isAsking = isLoading;
   $id('askBtn').disabled = isLoading || $id('chatInput').value.trim().length === 0;
-  $id('askBtn').textContent = isLoading ? 'Думаю…' : 'Спросить';
+  $id('askBtn').textContent = isLoading ? t('Думаю…') : t('Спросить');
 }
 
 async function handleAsk() {
@@ -230,7 +230,7 @@ async function handleAsk() {
     const reply = await provodChat(messages, { temperature });
     const cleanReply = stripMarkdown(reply);
     state.chatApiHistory.push({ role: 'assistant', content: reply });
-    appendChatMessage('assistant', cleanReply || '(пустой ответ модели)', { typewriter: true });
+    appendChatMessage('assistant', cleanReply || t('(пустой ответ модели)'), { typewriter: true });
     hideConnectionBanner();
   } catch (error) {
     console.error('Ошибка чата:', error);

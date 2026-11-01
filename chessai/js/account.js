@@ -102,14 +102,14 @@ function renderMenuProfile() {
   const acc = getAccount();
   if (acc) {
     avatarEl.textContent = acc.avatar || '♟';
-    nameEl.textContent = acc.name || 'Игрок';
+    nameEl.textContent = acc.name || t('Игрок');
     eloEl.textContent = `${Number.isFinite(acc.elo) ? acc.elo : 1200} Elo`;
     eloEl.classList.remove('hidden');
     authBtn.classList.add('hidden');
     cardEl.classList.remove('is-guest');
   } else {
     avatarEl.textContent = '♟';
-    nameEl.textContent = 'Гость';
+    nameEl.textContent = t('Гость');
     eloEl.classList.add('hidden');
     authBtn.classList.remove('hidden');
     cardEl.classList.add('is-guest');
@@ -135,5 +135,5 @@ async function handleLogout() {
   clearAccount();
   renderMenuProfile();
   if (typeof getCurrentView === 'function' && getCurrentView() === 'profile') renderProfileView();
-  showToast('Вы вышли из аккаунта');
+  showToast(t('Вы вышли из аккаунта'));
 }

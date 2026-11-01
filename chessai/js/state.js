@@ -63,7 +63,7 @@ const state = {
     responseLength: localStorage.getItem('chessResponseLength') || 'medium',
     autoHint: localStorage.getItem('chessAutoHint') === '1',
     autoHintDelay: parseInt(localStorage.getItem('chessAutoHintDelay') || '20', 10),
-    language: localStorage.getItem('chessLanguage') || 'ru',
+    language: uiLang,
     perfHardware: localStorage.getItem('chess_perfHardware') !== '0',
     perfHighFps: localStorage.getItem('chess_perfHighFps') !== '0',
     perfSmoothAnim: localStorage.getItem('chess_perfSmoothAnim') !== '0',

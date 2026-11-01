@@ -15,8 +15,8 @@ async function openMoveDetail(fen, san, label) {
   const loadingEl = document.getElementById('moveDetailLoading');
   const arrowSvg = document.getElementById('moveDetailArrow');
 
-  title.textContent = 'Анализ хода';
-  sanEl.textContent = `Ход: ${san}`;
+  title.textContent = t('Анализ хода');
+  sanEl.textContent = t('Ход: {san}', { san });
   commentEl.innerHTML = '';
   loadingEl.classList.remove('hidden');
   modal.classList.remove('hidden');
@@ -24,10 +24,10 @@ async function openMoveDetail(fen, san, label) {
 
   badgeEl.className = 'move-detail-badge';
   if (label === 'best') {
-    badgeEl.textContent = '🟢 Лучший ход партии';
+    badgeEl.textContent = t('🟢 Лучший ход партии');
     badgeEl.classList.add('is-visible', 'is-best');
   } else if (label === 'worst') {
-    badgeEl.textContent = '🔴 Худший ход партии';
+    badgeEl.textContent = t('🔴 Худший ход партии');
     badgeEl.classList.add('is-visible', 'is-worst');
   }
 
@@ -74,7 +74,7 @@ async function openMoveDetail(fen, san, label) {
     }
 
     if (!chatSignedIn) {
-      commentEl.textContent = `Лучший ход по Stockfish: ${bestMoveSan || '—'}. Объяснение от нейросети доступно после входа в аккаунт.`;
+      commentEl.textContent = t('Лучший ход по Stockfish: {move}. Объяснение от нейросети доступно после входа в аккаунт.', { move: bestMoveSan || '—' });
       return;
     }
 
@@ -84,11 +84,11 @@ async function openMoveDetail(fen, san, label) {
 Лучший ход по мнению Stockfish (движка): ${bestMoveSan} (UCI: ${bestMoveUci})
 Оценка позиции (в центах, положительная — перевес белых): ${score !== null ? score : 'неизвестно'}
 
-Сравни фактический ход с лучшим. Объясни, почему ход ${san} был хорош или плох. Укажи, какие угрозы он создаёт или не создаёт. Дай краткий комментарий (2-3 предложения) на русском языке простым текстом, без markdown.
+Сравни фактический ход с лучшим. Объясни, почему ход ${san} был хорош или плох. Укажи, какие угрозы он создаёт или не создаёт. Дай краткий комментарий (2-3 предложения) ${AI_LANGUAGE} простым текстом, без markdown.
 `;
     const messages = [{ role: 'user', content: prompt }];
     const reply = await provodChat(messages, { temperature: 0.4 });
-    commentEl.textContent = stripMarkdown(reply) || 'Не удалось получить комментарий.';
+    commentEl.textContent = stripMarkdown(reply) || t('Не удалось получить комментарий.');
   } catch (error) {
     commentEl.textContent = chatErrorMessage(error);
   } finally {
@@ -177,19 +177,19 @@ function ensureProgressUi() {
 function startProgress() {
   ensureProgressUi();
   progressBar.style.width = '0%';
-  progressLabelEl.textContent = 'Подготовка анализа…';
+  progressLabelEl.textContent = t('Подготовка анализа…');
 }
 function updateProgress(step, total, san) {
   const percent = Math.round((step / total) * 100);
   progressBar.style.width = percent + '%';
   progressLabelEl.textContent = san
-    ? `Проверка хода: ${san} (${percent}%)`
-    : `Анализ начальной позиции… (${percent}%)`;
+    ? t('Проверка хода: {san} ({percent}%)', { san, percent })
+    : t('Анализ начальной позиции… ({percent}%)', { percent });
 }
 function stopProgress(success = true) {
   if (success) {
     progressBar.style.width = '100%';
-    if (progressLabelEl) progressLabelEl.textContent = 'Готово';
+    if (progressLabelEl) progressLabelEl.textContent = t('Готово');
   }
   setTimeout(() => {
     if (progressContainer.parentNode) progressContainer.remove();
@@ -344,10 +344,10 @@ async function requestAnalysis() {
   try {
     const fens = state.fenHistory;
     const moves = state.game.history({ verbose: true });
-    if (fens.length < 2) throw new Error('Недостаточно ходов для анализа.');
+    if (fens.length < 2) throw new Error(t('Недостаточно ходов для анализа.'));
 
     await waitForEngine(3000);
-    if (!isEngineReady) throw new Error('Движок Stockfish не готов. Обновите страницу и попробуйте снова.');
+    if (!isEngineReady) throw new Error(t('Движок Stockfish не готов. Обновите страницу и попробуйте снова.'));
 
     // Если последняя позиция партии всё ещё анализируется в фоне (Infinite
     // Analysis) — останавливаем и сохраняем в кэш то, что уже накоплено.
@@ -380,7 +380,7 @@ async function requestAnalysis() {
       eloWhite: prelimStats.eloWhite, eloBlack: prelimStats.eloBlack,
       avgCplWhite: prelimStats.avgCplWhite, avgCplBlack: prelimStats.avgCplBlack,
       bestMoveObj: prelimStats.bestMoveObj, worstMoveObj: prelimStats.worstMoveObj,
-      comment: 'Уточняю анализ партии в фоне…',
+      comment: t('Уточняю анализ партии в фоне…'),
     }, { refining: true });
     hideConnectionBanner();
 
@@ -392,12 +392,12 @@ async function requestAnalysis() {
   } catch (error) {
     console.error('Ошибка анализа:', error);
     stopProgress(false);
-    content.innerHTML = `<p class="analysis-error">Не удалось получить анализ. ${escapeHtml(error.message)}</p>`;
-    showConnectionBanner(`Ошибка: ${error.message}`);
+    content.innerHTML = `<p class="analysis-error">${t('Не удалось получить анализ.')} ${escapeHtml(error.message)}</p>`;
+    showConnectionBanner(t('Ошибка: {error}', { error: error.message }));
   } finally {
     loading.classList.add('hidden');
     btn.disabled = false;
-    btn.textContent = 'Обновить анализ';
+    btn.textContent = t('Обновить анализ');
   }
 }
 
@@ -449,14 +449,14 @@ async function refineGameAnalysis(runId, fens, moves, weakPc, baseDepth, critica
     });
 
     const pgn = state.game.pgn();
-    let comment = chatSignedIn ? 'Комментарий недоступен.' : 'Комментарий нейросети к партии появится после входа в аккаунт.';
+    let comment = chatSignedIn ? t('Комментарий недоступен.') : t('Комментарий нейросети к партии появится после входа в аккаунт.');
     if (chatSignedIn) try {
       const prompt = `Партия в шахматы (PGN): ${pgn}
 Точность белых (расчёт движка): ${stats.accuracyWhite.toFixed(1)}%, средняя потеря centipawn: ${stats.avgCplWhite.toFixed(0)}.
 Точность чёрных: ${stats.accuracyBlack.toFixed(1)}%, средняя потеря centipawn: ${stats.avgCplBlack.toFixed(0)}.
 Лучший ход партии: ${stats.bestMoveObj ? stats.bestMoveObj.move.san : '—'}.
 Худший ход партии: ${stats.worstMoveObj ? stats.worstMoveObj.move.san : '—'}.
-Дай короткий (2-3 предложения) комментарий о партии простым текстом, без markdown-разметки.`;
+Дай короткий (2-3 предложения) комментарий о партии ${AI_LANGUAGE} простым текстом, без markdown-разметки.`;
       const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.4 });
       comment = stripMarkdown(raw) || comment;
     } catch (e) {
@@ -495,20 +495,20 @@ function renderAnalysis(data, { refining = false } = {}) {
     eloWhite, eloBlack, avgCplWhite, avgCplBlack, bestMoveObj, worstMoveObj, comment,
   } = data;
   const content = $id('analysisContent');
-  let html = `<div class="analysis-stat"><span>Всего ходов</span><b>${totalFullMoves} <span class="muted">(${totalPly} полуходов)</span></b></div>`;
-  html += `<div class="analysis-stat"><span>Точность белых</span><b>${accuracyWhite.toFixed(1)}% <span class="muted">(CPL ${avgCplWhite.toFixed(0)})</span></b></div>`;
-  html += `<div class="analysis-stat"><span>Точность чёрных</span><b>${accuracyBlack.toFixed(1)}% <span class="muted">(CPL ${avgCplBlack.toFixed(0)})</span></b></div>`;
-  html += `<div class="analysis-stat"><span>Оценка уровня (белые)</span><b>~${eloWhite} Elo</b></div>`;
-  html += `<div class="analysis-stat"><span>Оценка уровня (чёрные)</span><b>~${eloBlack} Elo</b></div>`;
+  let html = `<div class="analysis-stat"><span>${t('Всего ходов')}</span><b>${totalFullMoves} <span class="muted">(${t('{n} полуходов', { n: totalPly })})</span></b></div>`;
+  html += `<div class="analysis-stat"><span>${t('Точность белых')}</span><b>${accuracyWhite.toFixed(1)}% <span class="muted">(CPL ${avgCplWhite.toFixed(0)})</span></b></div>`;
+  html += `<div class="analysis-stat"><span>${t('Точность чёрных')}</span><b>${accuracyBlack.toFixed(1)}% <span class="muted">(CPL ${avgCplBlack.toFixed(0)})</span></b></div>`;
+  html += `<div class="analysis-stat"><span>${t('Оценка уровня (белые)')}</span><b>~${eloWhite} Elo</b></div>`;
+  html += `<div class="analysis-stat"><span>${t('Оценка уровня (чёрные)')}</span><b>~${eloBlack} Elo</b></div>`;
 
   if (bestMoveObj) {
     html += `<div class="move-card move-card-best" data-fen="${escapeHtml(bestMoveObj.fenBefore)}" data-san="${escapeHtml(bestMoveObj.move.san)}">
-      <span class="move-card-label">🟢 Лучший ход</span><span class="move-card-san">${escapeHtml(bestMoveObj.move.san)}</span>
+      <span class="move-card-label">${t('🟢 Лучший ход')}</span><span class="move-card-san">${escapeHtml(bestMoveObj.move.san)}</span>
     </div>`;
   }
   if (worstMoveObj) {
     html += `<div class="move-card move-card-worst" data-fen="${escapeHtml(worstMoveObj.fenBefore)}" data-san="${escapeHtml(worstMoveObj.move.san)}">
-      <span class="move-card-label">🔴 Худший ход</span><span class="move-card-san">${escapeHtml(worstMoveObj.move.san)}</span>
+      <span class="move-card-label">${t('🔴 Худший ход')}</span><span class="move-card-san">${escapeHtml(worstMoveObj.move.san)}</span>
     </div>`;
   }
 
@@ -516,9 +516,9 @@ function renderAnalysis(data, { refining = false } = {}) {
   if (refining) {
     // Предварительный результат (ТЗ п.2) — сообщаем, что цифры ещё уточняются
     // в фоне; переиспользуем существующий класс, новых стилей не требуется.
-    html += `<p class="analysis-disclaimer">⏳ Быстрый предварительный результат — Stockfish продолжает углублять анализ в фоне, значения скоро уточнятся.</p>`;
+    html += `<p class="analysis-disclaimer">${t('⏳ Быстрый предварительный результат — Stockfish продолжает углублять анализ в фоне, значения скоро уточнятся.')}</p>`;
   }
-  html += `<p class="analysis-disclaimer">Точность, CPL и Elo рассчитаны Stockfish; Elo — грубая оценка, не официальный рейтинг.</p>`;
+  html += `<p class="analysis-disclaimer">${t('Точность, CPL и Elo рассчитаны Stockfish; Elo — грубая оценка, не официальный рейтинг.')}</p>`;
   content.innerHTML = html;
 
   content.querySelectorAll('.move-card').forEach(card => {

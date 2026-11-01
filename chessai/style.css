@@ -1074,6 +1074,9 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  /* По фону кликают, ловя фигуры, — двойной клик не должен выделять текст */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .home-board-bg {

@@ -223,7 +223,7 @@ async function requestCharacterMove() {
 function buildCharacterReactionPrompt() {
   const c = state.character;
   return `Ты — шахматный персонаж ${c.name} (${c.style}) внутри игрового приложения. Твой стиль: ${c.tone}. Отвечай кратко (1-2 предложения) 
-  в образе, по-русски, с характером, без кавычек и разметки.`;
+  в образе, ${AI_LANGUAGE}, с характером, без кавычек и разметки.`;
 }
 
 async function characterReact(context, isAuto = false) {
@@ -231,7 +231,7 @@ async function characterReact(context, isAuto = false) {
   try {
     const messages = [
       { role: 'system', content: buildCharacterReactionPrompt() },
-      { role: 'user', content: `Ситуация в партии: ${context}\nОтветь одной-двумя фразами в образе персонажа, по-русски, без кавычек и разметки.` },
+      { role: 'user', content: `Ситуация в партии: ${context}\nОтветь одной-двумя фразами в образе персонажа, ${AI_LANGUAGE}, без кавычек и разметки.` },
     ];
     const reply = await provodChat(messages, { temperature: 1.0, kind: 'game' });
     const clean = stripMarkdown(reply).replace(/^["«]+|["»]+$/g, '').trim();
@@ -315,7 +315,7 @@ function triggerCharacterEvents(move, isUserMove) {
 
 /* ---- Итоговая карточка партии против персонажа ---- */
 function renderCharacterResultLoading() {
-  $id('characterResultContent').innerHTML = '<p class="analysis-loading">Персонаж обдумывает партию…</p>';
+  $id('characterResultContent').innerHTML = `<p class="analysis-loading">${t('Персонаж обдумывает партию…')}</p>`;
 }
 
 function renderCharacterResult({ mood, favoriteMoment, comment }) {
@@ -326,7 +326,7 @@ function renderCharacterResult({ mood, favoriteMoment, comment }) {
       <span class="char-result-name">${escapeHtml(c ? c.name : '')}</span>
       <span class="char-result-mood">${escapeHtml(mood)}</span>
     </div>
-    <div class="char-result-row"><span>Любимый момент</span><b>${escapeHtml(favoriteMoment)}</b></div>
+    <div class="char-result-row"><span>${t('Любимый момент')}</span><b>${escapeHtml(favoriteMoment)}</b></div>
     <p class="char-result-comment">${escapeHtml(comment)}</p>
   `;
 }
@@ -341,18 +341,18 @@ async function generateCharacterEndSummary(resultText, outcome) {
 Партия завершилась: ${resultText} (${moodMap[outcome] || 'результат неизвестен'}).
 История партии (PGN): ${pgn || '—'}
 Ответь СТРОГО валидным JSON без markdown и пояснений, в формате:
-{"mood":"один эмодзи, отражающий настроение персонажа","favoriteMoment":"короткая фраза о любимом моменте партии, до 12 слов, по-русски","comment":"комментарий персонажа о партии в его манере общения, 1-2 предложения, по-русски"}`;
+{"mood":"один эмодзи, отражающий настроение персонажа","favoriteMoment":"короткая фраза о любимом моменте партии, до 12 слов, ${AI_LANGUAGE}","comment":"комментарий персонажа о партии в его манере общения, 1-2 предложения, ${AI_LANGUAGE}"}`;
   try {
     const raw = await provodChat([{ role: 'user', content: prompt }], { temperature: 0.85, kind: 'game' });
     const parsed = JSON.parse(extractJson(raw));
     renderCharacterResult({
       mood: String(parsed.mood || '🙂').trim().slice(0, 4) || '🙂',
-      favoriteMoment: stripMarkdown(String(parsed.favoriteMoment || '')).trim() || 'Момент, который запомнится надолго.',
-      comment: stripMarkdown(String(parsed.comment || '')).trim() || 'Хорошая была партия.',
+      favoriteMoment: stripMarkdown(String(parsed.favoriteMoment || '')).trim() || t('Момент, который запомнится надолго.'),
+      comment: stripMarkdown(String(parsed.comment || '')).trim() || t('Хорошая была партия.'),
     });
   } catch (error) {
     console.error('Ошибка итогового комментария персонажа:', error);
     const fallbackMood = outcome === 'character_win' ? '🙂' : (outcome === 'player_win' ? '😔' : '🤝');
-    renderCharacterResult({ mood: fallbackMood, favoriteMoment: '—', comment: 'Комментарий персонажа сейчас недоступен.' });
+    renderCharacterResult({ mood: fallbackMood, favoriteMoment: '—', comment: t('Комментарий персонажа сейчас недоступен.') });
   }
 }

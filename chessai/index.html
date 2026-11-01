@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>chessai — игра против нейросети</title>
 
+<!-- Язык интерфейса: словарь и t() нужны всем скриптам ниже -->
+<script src="js/i18n-en.js"></script>
+<script src="js/i18n.js"></script>
+
 <!-- Применяем тему ДО первой отрисовки -->
 <script>
 (function () {
@@ -51,6 +55,7 @@
 
     <div class="loading-status">
       <span id="loadingStatusText">Загрузка</span><span class="loading-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span>
+      <script>document.getElementById('loadingStatusText').textContent = t('Загрузка');</script>
     </div>
   </div>
 </div>
@@ -594,6 +599,14 @@
         <div class="settings-group">
           <div class="settings-group-title">Внешний вид</div>
 
+          <div class="settings-row column">
+            <span class="settings-row-label">Язык</span>
+            <div id="languageRow" class="board-style-row">
+              <button type="button" class="board-style-btn" data-language="ru">Русский</button>
+              <button type="button" class="board-style-btn" data-language="en">English</button>
+            </div>
+          </div>
+
           <div class="settings-row">
             <span class="settings-row-label">Тема оформления</span>
             <button id="settingsThemeToggle" class="theme-switch-btn" type="button">
@@ -1007,6 +1020,7 @@
 <!-- Логика приложения. Это обычные скрипты с общими глобальными именами,
      поэтому порядок важен: файл может сразу при загрузке пользоваться только
      тем, что объявлено в файлах выше. state.js — первым, main.js — последним. -->
+<script>translatePage();</script>
 <script src="js/state.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/theme.js"></script>
