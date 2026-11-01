@@ -460,7 +460,7 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
 .msg-user {
   align-self: flex-end;
   background: var(--accent-soft);
-  color: var(--accent-dark);
+  color: var(--text);
   border-bottom-right-radius: 4px;
 }
 .msg-assistant {

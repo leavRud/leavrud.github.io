@@ -79,6 +79,9 @@ const state = {
 };
 state.lastAutoReplyTime = 0;
 state.lastAutoReplies = [];
+state.autoReplyPending = false;
+state.pliesSinceCharacterSpoke = 0;
+state.gameLimitNotified = false;
 state.settings.temperature = temp;
 state.timeLimited = localStorage.getItem('chessTimeLimited') !== '0';
 state.timeWhite = 600;  // секунд

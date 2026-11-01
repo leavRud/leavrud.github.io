@@ -43,6 +43,10 @@ function initGame() {
   state.fenHistory = [state.game.fen()];
   state.prevCharacterEval = null;
   state.lastMoveFlavor = null;
+  state.lastAutoReplyTime = 0;
+  state.lastAutoReplies = [];
+  state.autoReplyPending = false;
+  state.pliesSinceCharacterSpoke = 0;
 
   // Новая партия — старый кэш анализа больше не актуален
   clearAnalysisCache();
@@ -88,6 +92,7 @@ function initGame() {
     $id('chatHint').textContent = t('{name} — ваш соперник и не даёт подсказок по ходам', { name: state.character.name });
     chatInputEl.placeholder = t('Скажите что-нибудь {name}…', { name: state.character.name });
     logSystemChat(t('Вы играете против персонажа «{name}» (≈{elo} Elo). Он ваш соперник за доской и не будет подсказывать вам ходы.', { name: state.character.name, elo: state.character.elo }));
+    characterReact('Партия только начинается. Поприветствуйте соперника в своём образе.', true);
   } else {
     $id('modeLabel').textContent = t('Игра вдвоём за одним ПК');
     $id('chatTitle').textContent = t('Диалог с нейросетью');

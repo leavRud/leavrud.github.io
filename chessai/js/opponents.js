@@ -226,8 +226,19 @@ function buildCharacterReactionPrompt() {
   в образе, ${AI_LANGUAGE}, с характером, без кавычек и разметки.`;
 }
 
+const CHARACTER_REPLY_COOLDOWN_MS = 30000;
+const CHARACTER_QUIET_PLIES = 12;    // столько полуходов тишины, прежде чем персонаж может заговорить сам
+const CHARACTER_QUIET_CHANCE = 0.5;  // чтобы реплики не звучали строго по расписанию
+
 async function characterReact(context, isAuto = false) {
   if (state.mode !== 'characters' || !state.character) return;
+  const gameStartedAt = state.gameStartedAt;
+  if (isAuto) {
+    // Отмечаем сразу, а не после ответа: иначе за время запроса уйдёт второй
+    state.autoReplyPending = true;
+    state.lastAutoReplyTime = Date.now();
+    state.pliesSinceCharacterSpoke = 0;
+  }
   try {
     const messages = [
       { role: 'system', content: buildCharacterReactionPrompt() },
@@ -235,74 +246,71 @@ async function characterReact(context, isAuto = false) {
     ];
     const reply = await provodChat(messages, { temperature: 1.0, kind: 'game' });
     const clean = stripMarkdown(reply).replace(/^["«]+|["»]+$/g, '').trim();
-    if (!clean) return;
+    // Пока шёл запрос, игрок начал новую партию — реплика уже не к месту
+    if (!clean || gameStartedAt !== state.gameStartedAt) return;
 
     if (isAuto) {
       // проверка на дубликат среди последних 5 реплик
       if (state.lastAutoReplies.includes(clean)) return;
       state.lastAutoReplies.push(clean);
       if (state.lastAutoReplies.length > 5) state.lastAutoReplies.shift();
-      state.lastAutoReplyTime = Date.now();
     }
 
     // добавить в историю чата (API) – для контекста
     state.chatApiHistory.push({ role: 'assistant', content: clean });
     // добавить в отображение
-    appendCharacterMessage(clean);
+    appendChatMessage('character', clean, { typewriter: true });
   } catch (error) {
     console.error('Ошибка реплики персонажа:', error);
+    if (error.code === 'GAME_LIMIT_REACHED' && !state.gameLimitNotified && gameStartedAt === state.gameStartedAt) {
+      state.gameLimitNotified = true;
+      logSystemChat(chatErrorMessage(error));
+    }
+  } finally {
+    if (isAuto && gameStartedAt === state.gameStartedAt) state.autoReplyPending = false;
   }
-}
-
-function appendCharacterMessage(text) {
-  state.chatDisplay.push({ role: 'character', text });
-  const div = document.createElement('div');
-  div.className = 'msg msg-character';
-  const nameSpan = document.createElement('span');
-  nameSpan.className = 'msg-character-name';
-  nameSpan.textContent = state.character ? state.character.name : '';
-  const textSpan = document.createElement('span');
-  textSpan.className = 'msg-character-text';
-  textSpan.textContent = text;
-  div.appendChild(nameSpan);
-  div.appendChild(textSpan);
-  $id('chatLog').appendChild(div);
-  $id('chatLog').scrollTop = $id('chatLog').scrollHeight;
 }
 
 function triggerCharacterEvents(move, isUserMove) {
   if (state.mode !== 'characters' || !state.character) return;
-  const now = Date.now();
-  if (now - state.lastAutoReplyTime < 30000) return;
+  state.pliesSinceCharacterSpoke++;
+  const flavor = state.lastMoveFlavor;
+  state.lastMoveFlavor = null;
   const game = state.game;
+  const isMate = game.in_checkmate();
+  // Мат звучит всегда, остальное — не чаще раза в CHARACTER_REPLY_COOLDOWN_MS
+  const isBusy = state.autoReplyPending || Date.now() - state.lastAutoReplyTime < CHARACTER_REPLY_COOLDOWN_MS;
+  if (!isMate && isBusy) return;
   let event = null;
-  if (game.in_checkmate()) {
+  if (isMate) {
     event = isUserMove ? 'mate_lost' : 'mate_won';
   } else if (!isUserMove && move.captured === 'q') {
     event = 'captured_queen';
-  } else if (!isUserMove && state.lastMoveFlavor === 'sacrifice') {
+  } else if (isUserMove && move.captured === 'q') {
+    event = 'player_captured_queen';
+  } else if (!isUserMove && flavor === 'sacrifice') {
     event = 'sacrifice';
-  } else if (!isUserMove && state.lastMoveFlavor === 'goodCombo') {
+  } else if (!isUserMove && flavor === 'goodCombo') {
     event = 'good_combo';
-  } else if (!isUserMove && state.lastMoveFlavor === 'opponentMistake') {
+  } else if (!isUserMove && flavor === 'opponentMistake') {
     event = 'opponent_mistake';
   } else if (game.in_check()) {
     event = isUserMove ? 'player_gives_check' : 'character_gives_check';
-  } else if (isUserMove && move.captured === 'q') {
-    event = 'player_captured_queen';
+  } else if (!isUserMove && state.pliesSinceCharacterSpoke >= CHARACTER_QUIET_PLIES && Math.random() < CHARACTER_QUIET_CHANCE) {
+    event = 'quiet';
   }
-  state.lastMoveFlavor = null;
   if (!event) return;
   const contexts = {
     mate_won: `Вы только что поставили сопернику мат ходом ${move.san}.`,
     mate_lost: 'Соперник только что поставил вам мат.',
     captured_queen: `Вы взяли ферзя соперника ходом ${move.san}.`,
-    sacrifice: `Вы пожертвовали материал ходом ${move.san}, следуя своему стилю игры.`,
+    sacrifice: `Вы сделали рискованное взятие ходом ${move.san}, следуя своему стилю игры.`,
     good_combo: `Вы нашли сильную тактическую комбинацию ходом ${move.san}.`,
     opponent_mistake: 'Соперник только что допустил заметную ошибку в партии.',
     character_gives_check: `Вы объявили сопернику шах ходом ${move.san}.`,
     player_gives_check: 'Соперник только что объявил вам шах.',
     player_captured_queen: 'Соперник только что взял вашего ферзя.',
+    quiet: `Партия идёт спокойно, вы только что сыграли ${move.san}. Скажите сопернику что-нибудь в своём образе: подколите, поделитесь мыслью или настроением.`,
   };
   if (event) {
     const context = contexts[event];

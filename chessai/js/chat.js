@@ -165,17 +165,27 @@ document.querySelectorAll('.mobile-tab').forEach(tab => {
 
 function appendChatMessage(role, text, { typewriter = false } = {}) {
   state.chatDisplay.push({ role, text });
-  if (role === 'assistant' && document.querySelector('.layout').dataset.mobileTab !== 'chat') {
+  if ((role === 'assistant' || role === 'character') && document.querySelector('.layout').dataset.mobileTab !== 'chat') {
     document.querySelector('.mobile-tab[data-tab="chat"]').classList.add('has-unread');
   }
   const div = document.createElement('div');
   div.className = `msg msg-${role}`;
+  // У реплики персонажа над текстом стоит его имя
+  let textEl = div;
+  if (role === 'character') {
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'msg-character-name';
+    nameSpan.textContent = state.character ? state.character.name : '';
+    textEl = document.createElement('span');
+    textEl.className = 'msg-character-text';
+    div.append(nameSpan, textEl);
+  }
   $id('chatLog').appendChild(div);
   $id('chatLog').scrollTop = $id('chatLog').scrollHeight;
   playSound('notification');
 
   if (!typewriter) {
-    div.textContent = text;
+    textEl.textContent = text;
     return;
   }
 
@@ -184,7 +194,7 @@ function appendChatMessage(role, text, { typewriter = false } = {}) {
   const chatLog = $id('chatLog');
   const step = () => {
     i += 1;
-    div.textContent = text.slice(0, i);
+    textEl.textContent = text.slice(0, i);
     if (i % 3 === 0) chatLog.scrollTop = chatLog.scrollHeight;
     if (i < text.length) {
       setTimeout(step, speed);
@@ -230,7 +240,9 @@ async function handleAsk() {
     const reply = await provodChat(messages, { temperature });
     const cleanReply = stripMarkdown(reply);
     state.chatApiHistory.push({ role: 'assistant', content: reply });
-    appendChatMessage('assistant', cleanReply || t('(пустой ответ модели)'), { typewriter: true });
+    const isCharacterReply = state.mode === 'characters' && state.character;
+    if (isCharacterReply) state.pliesSinceCharacterSpoke = 0;
+    appendChatMessage(isCharacterReply ? 'character' : 'assistant', cleanReply || t('(пустой ответ модели)'), { typewriter: true });
     hideConnectionBanner();
   } catch (error) {
     console.error('Ошибка чата:', error);
