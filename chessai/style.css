@@ -2064,7 +2064,15 @@ html.dark .achv-modal-overlay .achv-modal {
 
 .achv-card.is-secret.is-locked { filter: grayscale(1) brightness(0.8); }
 
-.achv-card-icon { font-size: 30px; line-height: 1; margin-bottom: 2px; }
+.achv-card-icon { line-height: 1; margin-bottom: 2px; color: var(--achv-tier, rgba(244, 239, 228, 0.55)); }
+.achv-card-icon .achv-icon { width: 32px; height: 32px; display: block; }
+.achv-toast-icon { color: var(--achv-tier, var(--gold)); }
+.achv-toast-icon .achv-icon { width: 24px; height: 24px; display: block; }
+.achv-tier-2   { --achv-tier: #C08A56; }
+.achv-tier-5   { --achv-tier: #B4BEC8; }
+.achv-tier-7   { --achv-tier: #E2B33C; }
+.achv-tier-15  { --achv-tier: #5CC8DC; }
+.achv-tier-50  { --achv-tier: #C57BE8; }
 .achv-card-name { font-weight: 700; font-size: 14.5px; color: #F4EFE4; font-family: var(--font-display); }
 .achv-card-desc { font-size: 12px; color: rgba(244, 239, 228, 0.55); line-height: 1.4; min-height: 32px; }
 .achv-card-date { font-size: 11px; color: var(--gold); margin-top: 4px; font-weight: 600; }

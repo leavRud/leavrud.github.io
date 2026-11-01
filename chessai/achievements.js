@@ -9,6 +9,8 @@ const Achievements = (function () {
 
   const STORAGE_KEY = 'chess_achievements_v1';
   const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
+  const MIN_RATED_MOVES = 10; // столько ходов игрока нужно для достижений за качество партии
+  const QUEEN_SAC_MATE_PLIES = 20; // 10 полных ходов на мат после потери ферзя
 
   /* ---------------------------------------------------------------------
      КАТЕГОРИИ
@@ -32,6 +34,7 @@ const Achievements = (function () {
   function defaultData() {
     return {
       unlocked: {},   // id -> { date: ISOString }
+      synced: {},     // id -> true, когда достижение записано в Supabase и награда забрана
       stats: {
         gamesPlayed: 0,
         winsTotal: 0,
@@ -47,16 +50,21 @@ const Achievements = (function () {
     };
   }
 
+  // Прогресс хранится отдельно для каждого аккаунта; STORAGE_KEY — данные гостя.
+  let currentUserId = null;
   let data = loadData();
 
-  function loadData() {
+  function storageKey(userId) { return userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY; }
+
+  function loadData(key = STORAGE_KEY) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(key);
       if (!raw) return defaultData();
       const parsed = JSON.parse(raw);
       const base = defaultData();
       return {
         unlocked: parsed.unlocked || {},
+        synced: parsed.synced || {},
         stats: Object.assign(base.stats, parsed.stats || {}),
       };
     } catch (e) {
@@ -65,7 +73,20 @@ const Achievements = (function () {
   }
 
   function saveData() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(storageKey(currentUserId), JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  // Переносит гостевой прогресс в данные вошедшего пользователя.
+  function mergeGuestData(guest) {
+    Object.keys(guest.unlocked).forEach((id) => {
+      if (!data.unlocked[id]) data.unlocked[id] = guest.unlocked[id];
+    });
+    const s = data.stats, g = guest.stats;
+    ['gamesPlayed', 'winsTotal', 'analysesCount', 'homeEnemiesKilled'].forEach((k) => { s[k] += g[k]; });
+    s.bestWinStreak = Math.max(s.bestWinStreak, g.bestWinStreak);
+    ['charactersPlayed', 'modesPlayed', 'checkTypesGiven'].forEach((k) => {
+      s[k] = Array.from(new Set(s[k].concat(g[k])));
+    });
   }
 
   function isUnlocked(id) { return !!data.unlocked[id]; }
@@ -81,7 +102,7 @@ const Achievements = (function () {
       startTime: null,
       moveCount: 0,           // полуходы
       playerPiecesLost: 0,
-      queenLostByPlayer: false,
+      queenLostPly: null,     // на каком полуходе игрок в последний раз потерял ферзя
       sacrificeFlag: false,
       lastUserMove: null,     // { to, piece }
       kingMoves: 0,
@@ -102,8 +123,6 @@ const Achievements = (function () {
       castlePly: null,             // на каком полуходе игрок сделал рокировку
       castleFullMove: null,        // на каком полном ходу игрок сделал рокировку
       playerHasCapturedAny: false, // брал ли игрок хоть одну фигуру
-      enteredEndgame: false,       // достигнута ли позиция-эндшпиль (мало фигур на доске)
-      enteredEndgameNoCapture: false,
       allPawnsAdvanced: false,     // все пешки игрока дошли хотя бы до 4-й горизонтали
       forkCount: 0,                // сколько вилок сделал игрок за партию
       playerRooksLost: 0,          // сколько своих ладей потерял игрок
@@ -112,6 +131,7 @@ const Achievements = (function () {
 
   function resetSession(payload) {
     session = freshSession();
+    lastGameContext = null;
     session.mode = payload.mode;
     session.playerColor = payload.playerColor || 'w';
     session.startTime = Date.now();
@@ -214,13 +234,6 @@ const Achievements = (function () {
     return { pin, skewer };
   }
 
-  // Считает все фигуры на доске (обе стороны)
-  function countPieces(board) {
-    let n = 0;
-    board.forEach(row => row.forEach(p => { if (p) n++; }));
-    return n;
-  }
-
   // Проверяет, что все оставшиеся пешки цвета color стоят хотя бы на 4-й горизонтали
   // (считая от своей стороны доски)
   function checkAllPawnsAdvanced(board, color) {
@@ -238,157 +251,157 @@ const Achievements = (function () {
     return anyPawn;
   }
 
+  // Мат поставил именно игрок (payload.checkmate верен и когда мат поставили ему)
+  const wonByMate = payload => payload.outcome === 'win' && payload.checkmate;
+
   /* ---------------------------------------------------------------------
      СПИСОК ДОСТИЖЕНИЙ
-     Каждое: id, category, icon, name, desc, secret?, events[], check(ctx)
+     Каждое: id, category, icon, reward, name, desc, secret?, events[], check(ctx)
+     icon — имя из js/achievement-icons.js; reward — вопросы за достижение, задаёт
+     цвет иконки. Сама награда начисляется из таблицы achievement_rewards.
      ctx = { payload, session, stats }
      progress(stats) -> {current, goal}  (необязательно, для прогресс-бара)
      --------------------------------------------------------------------- */
   const ACHIEVEMENTS = [
     // ===== Прогресс =====
-    { id: 'first_game', category: 'progress', icon: '♟', name: 'Первые шаги', desc: 'Сыграть первую партию.',
+    { id: 'first_game', category: 'progress', icon: 'player-play', reward: 2, name: 'Первые шаги', desc: 'Сыграть первую партию.',
       events: ['gameStart'], progress: s => ({ current: s.gamesPlayed, goal: 1 }),
       check: ({ stats }) => stats.gamesPlayed >= 1 },
-    { id: 'return_10', category: 'progress', icon: '🎯', name: 'Возвращение', desc: 'Сыграть 10 партий.',
+    { id: 'return_10', category: 'progress', icon: 'refresh', reward: 2, name: 'Возвращение', desc: 'Сыграть 10 партий.',
       events: ['gameStart'], progress: s => ({ current: s.gamesPlayed, goal: 10 }),
       check: ({ stats }) => stats.gamesPlayed >= 10 },
-    { id: 'veteran_100', category: 'progress', icon: '♛', name: 'Ветеран', desc: 'Сыграть 100 партий.',
+    { id: 'veteran_100', category: 'progress', icon: 'medal', reward: 7, name: 'Ветеран', desc: 'Сыграть 100 партий.',
       events: ['gameStart'], progress: s => ({ current: s.gamesPlayed, goal: 100 }),
       check: ({ stats }) => stats.gamesPlayed >= 100 },
-    { id: 'legend_1000', category: 'progress', icon: '👑', name: 'Легенда', desc: 'Сыграть 1000 партий.',
+    { id: 'legend_1000', category: 'progress', icon: 'crown', reward: 50, name: 'Легенда', desc: 'Сыграть 1000 партий.',
       events: ['gameStart'], progress: s => ({ current: s.gamesPlayed, goal: 1000 }),
       check: ({ stats }) => stats.gamesPlayed >= 1000 },
 
     // ===== Победы =====
-    { id: 'first_win', category: 'wins', icon: '🥇', name: 'Первая победа', desc: 'Выиграть первую партию.',
+    { id: 'first_win', category: 'wins', icon: 'trophy', reward: 2, name: 'Первая победа', desc: 'Выиграть первую партию.',
       events: ['gameEnd'], check: ({ stats }) => stats.winsTotal >= 1 },
-    { id: 'streak_3', category: 'wins', icon: '🔥', name: 'Серия', desc: 'Выиграть 3 партии подряд.',
+    { id: 'streak_3', category: 'wins', icon: 'flame', reward: 5, name: 'Серия', desc: 'Выиграть 3 партии подряд.',
       events: ['gameEnd'], progress: s => ({ current: s.bestWinStreak, goal: 3 }),
       check: ({ stats }) => stats.currentWinStreak >= 3 },
-    { id: 'streak_10', category: 'wins', icon: '🔥🔥', name: 'Неудержимый', desc: 'Выиграть 10 партий подряд.',
+    { id: 'streak_10', category: 'wins', icon: 'meteor', reward: 15, name: 'Неудержимый', desc: 'Выиграть 10 партий подряд.',
       events: ['gameEnd'], progress: s => ({ current: s.bestWinStreak, goal: 10 }),
       check: ({ stats }) => stats.currentWinStreak >= 10 },
-    { id: 'ruthless', category: 'wins', icon: '💀', name: 'Безжалостный', desc: 'Выиграть без потери фигур.',
+    { id: 'ruthless', category: 'wins', icon: 'skull', reward: 7, name: 'Безжалостный', desc: 'Выиграть без потери фигур.',
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.playerPiecesLost === 0 },
-    { id: 'speed_blitz', category: 'wins', icon: '⚡', name: 'Блиц', desc: 'Победить менее чем за 30 ходов.',
+    { id: 'speed_blitz', category: 'wins', icon: 'bolt', reward: 5, name: 'Блиц', desc: 'Победить менее чем за 30 ходов.',
       events: ['gameEnd'], check: ({ payload }) => payload.outcome === 'win' && payload.totalFullMoves != null && payload.totalFullMoves < 30 },
-    { id: 'iron_defense', category: 'wins', icon: '🧱', name: 'Железная защита', desc: 'Не потерять ни одной фигуры до 20-го хода.',
+    { id: 'iron_defense', category: 'wins', icon: 'wall', reward: 5, name: 'Железная защита', desc: 'Не потерять ни одной фигуры до 20-го хода.',
       events: ['move'], check: ({ session }) => session.moveCount >= 40 && session.playerPiecesLost === 0 },
 
     // ===== Тактика =====
-    { id: 'fork', category: 'tactics', icon: '🍴', name: 'Вилка', desc: 'Выполнить вилку.', events: ['tactic'],
+    { id: 'fork', category: 'tactics', icon: 'tools-kitchen-2', reward: 2, name: 'Вилка', desc: 'Выполнить вилку.', events: ['tactic'],
       check: ({ payload }) => !!payload.fork },
-    { id: 'pin', category: 'tactics', icon: '📌', name: 'Связка', desc: 'Выиграть фигуру благодаря связке.', events: ['tactic'],
+    { id: 'pin', category: 'tactics', icon: 'pin', reward: 2, name: 'Связка', desc: 'Выиграть фигуру благодаря связке.', events: ['tactic'],
       check: ({ payload }) => !!payload.pin },
-    { id: 'skewer', category: 'tactics', icon: '⚔', name: 'Шампур', desc: 'Выполнить шампур.', events: ['tactic'],
+    { id: 'skewer', category: 'tactics', icon: 'sword', reward: 2, name: 'Шампур', desc: 'Выполнить шампур.', events: ['tactic'],
       check: ({ payload }) => !!payload.skewer },
-    { id: 'double_attack', category: 'tactics', icon: '🎯', name: 'Двойной удар', desc: 'Выполнить двойную атаку.', events: ['tactic'],
+    { id: 'double_attack', category: 'tactics', icon: 'arrows-split-2', reward: 2, name: 'Двойной удар', desc: 'Выполнить двойную атаку.', events: ['tactic'],
       check: ({ payload }) => !!payload.doubleAttack },
-    { id: 'sacrifice', category: 'tactics', icon: '💣', name: 'Жертва', desc: 'Пожертвовать фигуру и выиграть партию.',
+    { id: 'sacrifice', category: 'tactics', icon: 'bomb', reward: 5, name: 'Жертва', desc: 'Пожертвовать фигуру и выиграть партию.',
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.sacrificeFlag },
-    { id: 'mate_2', category: 'tactics', icon: '🚀', name: 'Мат в два хода', desc: 'Поставить мат в два хода.',
-      events: ['gameEnd'], check: ({ payload, session }) => payload.checkmate &&
-        session.playerMoveChecks.length >= 2 && session.playerMoveChecks[session.playerMoveChecks.length - 2] === true },
-    { id: 'mate_queen', category: 'tactics', icon: '👑', name: 'Мат ферзём', desc: 'Поставить мат ферзём.',
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'q' },
-    { id: 'mate_knight', category: 'tactics', icon: '🐴', name: 'Мат конём', desc: 'Поставить мат конём.',
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'n' },
-    { id: 'mate_rook', category: 'tactics', icon: '🏰', name: 'Мат ладьёй', desc: 'Поставить мат ладьёй.',
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'r' },
-    { id: 'mate_two_bishops', category: 'tactics', icon: '♝', name: 'Мат двумя слонами', desc: 'Поставить мат, имея на доске обоих слонов.',
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'b' && payload.matingSideBishops >= 2 },
-    { id: 'mate_two_knights', category: 'tactics', icon: '🤝', name: 'Мат двумя конями', desc: 'Поставить мат, когда на доске оба ваших коня.', secret: true,
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'n' && payload.matingSideKnights >= 2 },
+    { id: 'mate_2', category: 'tactics', icon: 'circle-number-2', reward: 7, name: 'Мат в четыре хода', desc: 'Поставить мат за первые четыре хода партии.',
+      events: ['gameEnd'], check: ({ payload, session }) => wonByMate(payload) && session.playerMoveChecks.length <= 4 },
+    { id: 'mate_queen', category: 'tactics', icon: 'chess-queen', reward: 5, name: 'Мат ферзём', desc: 'Поставить мат ферзём.',
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'q' },
+    { id: 'mate_knight', category: 'tactics', icon: 'chess-knight', reward: 5, name: 'Мат конём', desc: 'Поставить мат конём.',
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'n' },
+    { id: 'mate_rook', category: 'tactics', icon: 'chess-rook', reward: 5, name: 'Мат ладьёй', desc: 'Поставить мат ладьёй.',
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'r' },
+    { id: 'mate_two_bishops', category: 'tactics', icon: 'chess-bishop', reward: 7, name: 'Мат двумя слонами', desc: 'Поставить мат, имея на доске обоих слонов.',
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'b' && payload.matingSideBishops >= 2 },
+    { id: 'mate_two_knights', category: 'tactics', icon: 'horse', reward: 7, name: 'Мат двумя конями', desc: 'Поставить мат, когда на доске оба ваших коня.', secret: true,
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'n' && payload.matingSideKnights >= 2 },
 
     // ===== Король =====
-    { id: 'castle', category: 'king', icon: '🛡', name: 'Рокировка', desc: 'Сделать рокировку.', events: ['move'],
+    { id: 'castle', category: 'king', icon: 'shield', reward: 2, name: 'Рокировка', desc: 'Сделать рокировку.', events: ['move'],
       check: ({ session }) => session.castled },
-    { id: 'king_warrior', category: 'king', icon: '⚔', name: 'Король-воин', desc: 'Сделать 10 ходов королём за партию.',
+    { id: 'king_warrior', category: 'king', icon: 'swords', reward: 5, name: 'Король-воин', desc: 'Сделать 10 ходов королём за партию.',
       events: ['move'], check: ({ session }) => session.kingMoves >= 10 },
-    { id: 'king_walk', category: 'king', icon: '👑', name: 'Королевская прогулка', desc: 'Победить после длинного похода королём через половину доски.',
+    { id: 'king_walk', category: 'king', icon: 'chess-king', reward: 7, name: 'Королевская прогулка', desc: 'Победить после длинного похода королём через половину доски.',
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.kingWalked },
 
     // ===== Пешки =====
-    { id: 'queen_promo', category: 'pawns', icon: '👑', name: 'Да здравствует ферзь', desc: 'Провести пешку в ферзя.',
+    { id: 'queen_promo', category: 'pawns', icon: 'arrow-big-up-lines', reward: 5, name: 'Да здравствует ферзь', desc: 'Провести пешку в ферзя.',
       events: ['move'], check: ({ payload }) => payload.promotion === 'q' },
-    { id: 'underpromotion', category: 'pawns', icon: '🐴', name: 'Необычный выбор', desc: 'Превратить пешку не в ферзя.',
+    { id: 'underpromotion', category: 'pawns', icon: 'transform', reward: 5, name: 'Необычный выбор', desc: 'Превратить пешку не в ферзя.',
       events: ['move'], check: ({ payload }) => !!payload.promotion && payload.promotion !== 'q' },
-    { id: 'en_passant', category: 'pawns', icon: '🚶', name: 'А вы знали?', desc: 'Взять пешкой на проходе.',
+    { id: 'en_passant', category: 'pawns', icon: 'walk', reward: 5, name: 'А вы знали?', desc: 'Взять пешкой на проходе.',
       events: ['move'], check: ({ payload }) => !!payload.enPassant },
 
     // ===== Против Stockfish =====
-    { id: 'beat_easy', category: 'stockfish', icon: '🟢', name: 'Лёгкий уровень', desc: 'Победить лёгкий уровень.',
+    { id: 'beat_easy', category: 'stockfish', icon: 'mood-smile', reward: 2, name: 'Лёгкий уровень', desc: 'Победить лёгкий уровень.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel <= 8 },
-    { id: 'beat_medium', category: 'stockfish', icon: '🟡', name: 'Средний уровень', desc: 'Победить средний уровень.',
+    { id: 'beat_medium', category: 'stockfish', icon: 'mood-neutral', reward: 5, name: 'Средний уровень', desc: 'Победить средний уровень.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel > 8 && payload.skillLevel < 20 },
-    { id: 'beat_hard', category: 'stockfish', icon: '🔴', name: 'Сложный уровень', desc: 'Победить сложный уровень.',
+    { id: 'beat_hard', category: 'stockfish', icon: 'robot', reward: 50, name: 'Сложный уровень', desc: 'Победить сложный уровень.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'ai' && payload.outcome === 'win' && payload.skillLevel >= 20 },
-    { id: 'rating_1500', category: 'stockfish', icon: '📈', name: 'Рейтинг', desc: 'Достичь предполагаемого Elo 1500.',
+    { id: 'rating_1500', category: 'stockfish', icon: 'trending-up', reward: 7, name: 'Рейтинг', desc: 'Достичь предполагаемого Elo 1500.',
       events: ['analysis'], check: ({ payload }) => payload.playerElo >= 1500 },
-    { id: 'perfect_game', category: 'stockfish', icon: '💎', name: 'Идеальная партия', desc: 'Качество партии выше 95%.',
+    { id: 'perfect_game', category: 'stockfish', icon: 'diamond', reward: 15, name: 'Идеальная партия', desc: 'Качество партии выше 95%.',
       events: ['analysis'], check: ({ payload }) => payload.playerAccuracy >= 95 },
 
     // ===== Персонажи =====
-    { id: 'first_character', category: 'characters', icon: '🎨', name: 'Первый персонаж', desc: 'Сыграть с первым персонажем.',
+    { id: 'first_character', category: 'characters', icon: 'masks-theater', reward: 2, name: 'Первый персонаж', desc: 'Сыграть с первым персонажем.',
       events: ['gameStart'], check: ({ stats }) => stats.charactersPlayed.length >= 1 },
-    { id: 'collector', category: 'characters', icon: '🎭', name: 'Коллекционер', desc: 'Сыграть против 10 разных персонажей.',
+    { id: 'collector', category: 'characters', icon: 'users', reward: 5, name: 'Коллекционер', desc: 'Сыграть против 10 разных персонажей.',
       events: ['gameStart'], progress: s => ({ current: s.charactersPlayed.length, goal: 10 }),
       check: ({ stats }) => stats.charactersPlayed.length >= 10 },
-    { id: 'legend_beater', category: 'characters', icon: '🧙', name: 'Победитель легенд', desc: 'Победить персонажа с Elo выше 2500.',
+    { id: 'legend_beater', category: 'characters', icon: 'wand', reward: 15, name: 'Победитель легенд', desc: 'Победить персонажа с Elo выше 2500.',
       events: ['gameEnd'], check: ({ payload }) => payload.mode === 'characters' && payload.outcome === 'win' && payload.characterElo > 2500 },
 
     // ===== Анализ партий =====
-    { id: 'first_analysis', category: 'analysis', icon: '📊', name: 'Первый анализ', desc: 'Проанализировать первую партию.',
+    { id: 'first_analysis', category: 'analysis', icon: 'chart-bar', reward: 2, name: 'Первый анализ', desc: 'Проанализировать первую партию.',
       events: ['analysis'], progress: s => ({ current: s.analysesCount, goal: 1 }),
       check: ({ stats }) => stats.analysesCount >= 1 },
-    { id: 'analyst_50', category: 'analysis', icon: '📚', name: 'Аналитик', desc: 'Проанализировать 50 партий.',
+    { id: 'analyst_50', category: 'analysis', icon: 'books', reward: 7, name: 'Аналитик', desc: 'Проанализировать 50 партий.',
       events: ['analysis'], progress: s => ({ current: s.analysesCount, goal: 50 }),
       check: ({ stats }) => stats.analysesCount >= 50 },
-    { id: 'best_move_view', category: 'analysis', icon: '🎯', name: 'Лучший ход', desc: 'Посмотреть лучший ход в анализе партии.',
+    { id: 'best_move_view', category: 'analysis', icon: 'bulb', reward: 2, name: 'Лучший ход', desc: 'Посмотреть лучший ход в анализе партии.',
       events: ['bestMoveView'], check: () => true },
 
     // ===== Время =====
-    { id: 'bullet_win', category: 'time', icon: '⚡', name: 'Пуля', desc: 'Победить менее чем за минуту.',
+    { id: 'bullet_win', category: 'time', icon: 'stopwatch', reward: 7, name: 'Пуля', desc: 'Победить менее чем за минуту.',
       events: ['gameEnd'], check: ({ payload }) => payload.outcome === 'win' && payload.elapsedMs != null && payload.elapsedMs < 60000 },
-    { id: 'patient', category: 'time', icon: '🕰', name: 'Терпеливый', desc: 'Сыграть партию длительностью более часа.',
+    { id: 'patient', category: 'time', icon: 'hourglass', reward: 5, name: 'Терпеливый', desc: 'Сыграть партию длительностью более часа.',
       events: ['gameEnd'], check: ({ payload }) => payload.elapsedMs != null && payload.elapsedMs > 3600000 },
-    { id: 'last_second', category: 'time', icon: '⌛', name: 'Последняя секунда', desc: 'Победить, имея менее 5 секунд на часах.',
+    { id: 'last_second', category: 'time', icon: 'alarm', reward: 7, name: 'Последняя секунда', desc: 'Победить, имея менее 5 секунд на часах.',
       events: ['gameEnd'], check: ({ payload }) => payload.outcome === 'win' && payload.ownTimeLeft != null && payload.ownTimeLeft < 5 },
 
     // ===== Секретные =====
-    { id: 'stalemate', category: 'secret', icon: '🦆', name: 'Пат', desc: 'Закончить партию патом.', secret: true,
+    { id: 'stalemate', category: 'secret', icon: 'hand-stop', reward: 5, name: 'Пат', desc: 'Закончить партию патом.', secret: true,
       events: ['gameEnd'], check: ({ payload }) => !!payload.stalemate },
-    { id: 'threefold', category: 'secret', icon: '♻', name: 'Троекратное повторение', desc: 'Закончить партию троекратным повторением позиции.', secret: true,
+    { id: 'threefold', category: 'secret', icon: 'repeat', reward: 5, name: 'Троекратное повторение', desc: 'Закончить партию троекратным повторением позиции.', secret: true,
       events: ['gameEnd'], check: ({ payload }) => !!payload.threefold },
-    { id: 'queen_sac', category: 'secret', icon: '😈', name: 'Жертва ферзя', desc: 'Выиграть партию, потеряв своего ферзя.', secret: true,
-      events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.queenLostByPlayer },
-    { id: 'comeback', category: 'secret', icon: '💀', name: 'Камбэк', desc: 'Выиграть партию, в которой ваша оценка позиции опускалась ниже -8.', secret: true,
+    { id: 'queen_sac', category: 'secret', icon: 'heart-broken', reward: 5, name: 'Жертва ферзя', desc: 'Поставить мат не позже чем через 10 ходов после потери своего ферзя.', secret: true,
+      events: ['gameEnd'], check: ({ payload, session }) => wonByMate(payload) && session.queenLostPly != null &&
+        session.moveCount - session.queenLostPly <= QUEEN_SAC_MATE_PLIES },
+    { id: 'comeback', category: 'secret', icon: 'arrow-back-up', reward: 7, name: 'Камбэк', desc: 'Выиграть партию, в которой ваша оценка позиции опускалась ниже -8.', secret: true,
       events: ['analysis'], check: ({ payload }) => payload.outcome === 'win' && payload.minPlayerEval != null && payload.minPlayerEval < -800 },
-    { id: 'flawless', category: 'secret', icon: '🎯', name: 'Безошибочная партия', desc: 'Пройти анализ партии без единой ошибки.', secret: true,
+    { id: 'flawless', category: 'secret', icon: 'circle-check', reward: 15, name: 'Безошибочная партия', desc: 'Пройти анализ партии без единой ошибки.', secret: true,
       events: ['analysis'], check: ({ payload }) => payload.playerHasMistake === false },
 
     // ===== Новые достижения =====
-    { id: 'machine', category: 'analysis', icon: '🖥', name: 'Машина', desc: 'Сыграть партию с точностью 95% и выше.',
-      events: ['analysis'], check: ({ payload }) => payload.playerAccuracy >= 95 },
-    { id: 'grandmaster_acc', category: 'analysis', icon: '🎓', name: 'Гроссмейстер', desc: 'Сыграть партию с точностью 98% и выше.',
+    { id: 'grandmaster_acc', category: 'analysis', icon: 'school', reward: 50, name: 'Гроссмейстер', desc: 'Сыграть партию с точностью 98% и выше.',
       events: ['analysis'], check: ({ payload }) => payload.playerAccuracy >= 98 },
-    { id: 'opening_prep', category: 'analysis', icon: '📖', name: 'Идеальная дебютная подготовка',
+    { id: 'opening_prep', category: 'analysis', icon: 'book-2', reward: 15, name: 'Идеальная дебютная подготовка',
       desc: 'Первые 15 ходов партии совпали с лучшей линией движка.',
       events: ['analysis'], check: ({ payload }) => !!payload.openingPerfect },
-    { id: 'on_the_edge', category: 'analysis', icon: '🧵', name: 'На волоске',
-      desc: 'Победить в партии, где оценка позиции опускалась до -7 или хуже.',
-      events: ['analysis'], check: ({ payload }) => payload.outcome === 'win' && payload.minPlayerEval != null && payload.minPlayerEval <= -700 },
 
-    { id: 'predator', category: 'tactics', icon: '🦈', name: 'Хищник', desc: 'Съесть все фигуры соперника, кроме короля.',
+    { id: 'predator', category: 'tactics', icon: 'fish', reward: 15, name: 'Хищник', desc: 'Съесть все фигуры соперника, кроме короля.',
       events: ['move'], check: ({ session }) => session.opponentPiecesLost >= 15 },
-    { id: 'one_for_all', category: 'tactics', icon: '🎖', name: 'Один за всех', desc: 'Одной фигурой взять 5 фигур соперника подряд.',
+    { id: 'one_for_all', category: 'tactics', icon: 'medal-2', reward: 7, name: 'Один за всех', desc: 'Одной фигурой взять 5 фигур соперника подряд.',
       events: ['move'], check: ({ session }) => session.samePieceStreak >= 5 },
-    { id: 'speed_of_light', category: 'time', icon: '💫', name: 'Скорость света', desc: 'Сделать 20 ходов подряд быстрее чем за 0.5 секунды.',
+    { id: 'speed_of_light', category: 'time', icon: 'comet', reward: 15, name: 'Скорость света', desc: 'Сделать 20 ходов подряд быстрее чем за 0.5 секунды.',
       events: ['move'], check: ({ session }) => session.fastMoveStreak >= 20 },
-    { id: 'terminator', category: 'stockfish', icon: '🦾', name: 'Терминатор', desc: 'Выиграть 20 партий подряд против Stockfish.',
+    { id: 'terminator', category: 'stockfish', icon: 'robot-face', reward: 50, name: 'Терминатор', desc: 'Выиграть 20 партий подряд против Stockfish.',
       events: ['gameEnd'], progress: s => ({ current: s.aiWinStreak, goal: 20 }),
       check: ({ stats }) => stats.aiWinStreak >= 20 },
-    { id: 'invisible_threat', category: 'tactics', icon: '👻', name: 'Невидимая угроза',
+    { id: 'invisible_threat', category: 'tactics', icon: 'ghost', reward: 15, name: 'Невидимая угроза',
       desc: 'Поставить мат, не давая ни одного шаха до самого последнего хода.',
       events: ['gameEnd'], check: ({ payload, session }) => {
         if (payload.outcome !== 'win' || !payload.checkmate) return false;
@@ -396,56 +409,62 @@ const Achievements = (function () {
         if (!checks.length) return false;
         return checks[checks.length - 1] === true && checks.slice(0, -1).every(c => c === false);
       } },
-    { id: 'domination', category: 'wins', icon: '🏆', name: 'Доминация', desc: 'Закончить партию победой, имея все свои фигуры.',
-      events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.playerPiecesLost === 0 },
-    { id: 'sniper', category: 'tactics', icon: '🏹', name: 'Снайпер', desc: 'Сделать минимум 8 ходов подряд — и каждый со взятием.',
+    { id: 'sniper', category: 'tactics', icon: 'target-arrow', reward: 15, name: 'Снайпер', desc: 'Сделать минимум 8 ходов подряд — и каждый со взятием.',
       events: ['move'], check: ({ session }) => session.capturePieceStreak >= 8 },
 
-    { id: 'meta_25', category: 'progress', icon: '🥉', name: 'Коллекционер (25%)', desc: 'Открыть 25% всех достижений.',
+    { id: 'meta_25', category: 'progress', icon: 'award', reward: 5, name: 'Коллекционер (25%)', desc: 'Открыть 25% всех достижений.',
       events: ['meta'], check: () => (baseUnlockedCount() / baseAchievementsCount()) >= 0.25 },
-    { id: 'meta_50', category: 'progress', icon: '🥈', name: 'Коллекционер (50%)', desc: 'Открыть 50% всех достижений.',
+    { id: 'meta_50', category: 'progress', icon: 'rosette', reward: 7, name: 'Коллекционер (50%)', desc: 'Открыть 50% всех достижений.',
       events: ['meta'], check: () => (baseUnlockedCount() / baseAchievementsCount()) >= 0.5 },
-    { id: 'meta_100', category: 'progress', icon: '🥇', name: 'Коллекционер (100%)', desc: 'Открыть 100% всех достижений.',
+    { id: 'meta_100', category: 'progress', icon: 'sparkles', reward: 50, name: 'Коллекционер (100%)', desc: 'Открыть 100% всех достижений.',
       events: ['meta'], check: () => (baseUnlockedCount() / baseAchievementsCount()) >= 1 },
 
-    { id: 'explorer', category: 'progress', icon: '🧭', name: 'Исследователь', desc: 'Попробовать все режимы игры.',
+    { id: 'explorer', category: 'progress', icon: 'compass', reward: 2, name: 'Исследователь', desc: 'Попробовать все режимы игры.',
       events: ['gameStart'], progress: s => ({ current: s.modesPlayed.length, goal: 3 }),
       check: ({ stats }) => stats.modesPlayed.length >= 3 },
-    { id: 'crowd_favorite', category: 'characters', icon: '🌟', name: 'Любимец публики', desc: 'Сыграть против 25 разных персонажей.',
+    { id: 'crowd_favorite', category: 'characters', icon: 'star', reward: 7, name: 'Любимец публики', desc: 'Сыграть против 25 разных персонажей.',
       events: ['gameStart'], progress: s => ({ current: s.charactersPlayed.length, goal: 25 }),
       check: ({ stats }) => stats.charactersPlayed.length >= 25 },
 
     // ===== Секретные (дополнительные) =====
-    { id: 'pawn_mate', category: 'secret', icon: '♟', name: 'Мат пешкой', desc: 'Поставить мат пешкой.', secret: true,
-      events: ['gameEnd'], check: ({ payload }) => payload.checkmate && payload.matingPiece === 'p' },
-    { id: 'humble_hero', category: 'secret', icon: '🐴', name: 'Скромный герой', desc: 'Выиграть партию, превратив пешку в коня.', secret: true,
+    { id: 'pawn_mate', category: 'secret', icon: 'chess', reward: 7, name: 'Мат пешкой', desc: 'Поставить мат пешкой.', secret: true,
+      events: ['gameEnd'], check: ({ payload }) => wonByMate(payload) &&payload.matingPiece === 'p' },
+    { id: 'humble_hero', category: 'secret', icon: 'horse-toy', reward: 7, name: 'Скромный герой', desc: 'Выиграть партию, превратив пешку в коня.', secret: true,
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.promotedToKnight },
-    { id: 'instant_justice', category: 'secret', icon: '🗡', name: 'Мгновенная расправа', desc: 'Поставить мат сразу через ход после рокировки.', secret: true,
+    { id: 'instant_justice', category: 'secret', icon: 'gavel', reward: 15, name: 'Мгновенная расправа', desc: 'Поставить мат сразу через ход после рокировки.', secret: true,
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && payload.checkmate &&
         session.castlePly != null && (session.moveCount - session.castlePly === 2) },
-    { id: 'queenless_win', category: 'secret', icon: '🚫', name: 'Без ферзя', desc: 'Выиграть партию, ни разу не сходив ферзём.', secret: true,
+    { id: 'queenless_win', category: 'secret', icon: 'crown-off', reward: 7, name: 'Без ферзя', desc: 'Выиграть партию, ни разу не сходив ферзём.', secret: true,
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && !session.queenEverMoved },
-    { id: 'early_castle', category: 'secret', icon: '🏰', name: 'Ранняя рокировка', desc: 'Сделать рокировку на 5-м ходу.', secret: true,
+    { id: 'early_castle', category: 'secret', icon: 'building-castle', reward: 5, name: 'Ранняя рокировка', desc: 'Сделать рокировку на 5-м ходу.', secret: true,
       events: ['move'], check: ({ session }) => session.castleFullMove === 5 },
-    { id: 'quiet_game', category: 'secret', icon: '🤫', name: 'Тихая игра', desc: 'Выиграть партию, дойдя до эндшпиля без единого взятия.', secret: true,
-      events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.enteredEndgame && session.enteredEndgameNoCapture },
-    { id: 'pawn_wave', category: 'secret', icon: '⛰', name: 'Пешечный прорыв', desc: 'Продвинуть все свои пешки вперёд за одну партию.', secret: true,
+    { id: 'quiet_game', category: 'secret', icon: 'volume-off', reward: 15, name: 'Тихая игра', desc: 'Поставить мат, не сделав ни одного взятия.', secret: true,
+      events: ['gameEnd'], check: ({ payload, session }) => wonByMate(payload) && !session.playerHasCapturedAny },
+    { id: 'pawn_wave', category: 'secret', icon: 'ripple', reward: 5, name: 'Пешечный прорыв', desc: 'Продвинуть все свои пешки вперёд за одну партию.', secret: true,
       events: ['move'], check: ({ session }) => session.allPawnsAdvanced },
-    { id: 'triple_fork', category: 'secret', icon: '🔱', name: 'Тройная вилка', desc: 'Выполнить вилку трижды за одну партию.', secret: true,
+    { id: 'triple_fork', category: 'secret', icon: 'trident', reward: 7, name: 'Тройная вилка', desc: 'Выполнить вилку трижды за одну партию.', secret: true,
       events: ['tactic'], check: ({ session }) => session.forkCount >= 3 },
-    { id: 'universal_threat', category: 'secret', icon: '🌈', name: 'Универсальная угроза', desc: 'Объявить шах пятью разными типами фигур (за все партии).', secret: true,
+    { id: 'universal_threat', category: 'secret', icon: 'rainbow', reward: 5, name: 'Универсальная угроза', desc: 'Объявить шах пятью разными типами фигур (за все партии).', secret: true,
       events: ['move'], check: ({ stats }) => stats.checkTypesGiven.length >= 5 },
-    { id: 'rook_sacrifice', category: 'secret', icon: '🗼', name: 'Ладейная жертва', desc: 'Выиграть партию, потеряв обе ладьи.', secret: true,
+    { id: 'rook_sacrifice', category: 'secret', icon: 'tower', reward: 7, name: 'Ладейная жертва', desc: 'Выиграть партию, потеряв обе ладьи.', secret: true,
       events: ['gameEnd'], check: ({ payload, session }) => payload.outcome === 'win' && session.playerRooksLost >= 2 },
-    { id: 'char_naruto', category: 'secret', icon: '🍥', name: 'Верю в тебя!', desc: 'Сыграть партию против персонажа Наруто.', secret: true,
+    { id: 'char_naruto', category: 'secret', icon: 'spiral', reward: 5, name: 'Даттебайо', desc: 'Сыграть партию против персонажа Наруто.', secret: true,
       events: ['gameStart'], check: ({ payload }) => !!(payload.character && /наруто|naruto/i.test(payload.character.name || '')) },
-    { id: 'char_walter', category: 'secret', icon: '🧪', name: 'Скажи моё имя', desc: 'Сыграть партию против персонажа Уолтера Уайта.', secret: true,
+    { id: 'char_walter', category: 'secret', icon: 'flask', reward: 5, name: 'Скажи моё имя', desc: 'Сыграть партию против персонажа Уолтера Уайта.', secret: true,
       events: ['gameStart'], check: ({ payload }) => !!(payload.character && /уолтер\s*уайт|walter\s*white|гейзенберг|heisenberg/i.test(payload.character.name || '')) },
-    { id: 'char_einstein', category: 'secret', icon: '🧠', name: 'Теория относительности', desc: 'Сыграть партию против персонажа Эйнштейна.', secret: true,
+    { id: 'char_einstein', category: 'secret', icon: 'atom', reward: 5, name: 'Теория относительности', desc: 'Сыграть партию против персонажа Эйнштейна.', secret: true,
       events: ['gameStart'], check: ({ payload }) => !!(payload.character && /эйнштейн|einstein/i.test(payload.character.name || '')) },
-    { id: 'home_enemy_slayer1', category: 'secret', icon: '👹', name: 'Убийца', desc: 'Убить 10 вражеских фигур на главном экране конями.', secret: true,
+    { id: 'char_lelouch', category: 'secret', icon: 'eye', reward: 5, name: 'Подчинись мне', desc: 'Сыграть партию против персонажа Лелуша Британского.', secret: true,
+      events: ['gameStart'], check: ({ payload }) => !!(payload.character && /лелуш|lelouch/i.test(payload.character.name || '')) },
+    { id: 'char_spongebob', category: 'secret', icon: 'bubble', reward: 5, name: 'Я готов!', desc: 'Сыграть партию против персонажа Спанч Боба.', secret: true,
+      events: ['gameStart'], check: ({ payload }) => !!(payload.character && /спанч\s*боб|губка\s*боб|sponge\s*bob/i.test(payload.character.name || '')) },
+    { id: 'char_mrbeast', category: 'secret', icon: 'coin', reward: 5, name: 'Миллион долларов', desc: 'Сыграть партию против персонажа Мистера Биста.', secret: true,
+      events: ['gameStart'], check: ({ payload }) => !!(payload.character && /мистер\s*бист|mr\.?\s*beast/i.test(payload.character.name || '')) },
+    { id: 'char_carlsen', category: 'secret', icon: 'brain', reward: 5, name: 'Лучший в истории', desc: 'Сыграть партию против персонажа Магнуса Карлсена.', secret: true,
+      events: ['gameStart'], check: ({ payload }) => !!(payload.character && /магнус|карлсен|magnus|carlsen/i.test(payload.character.name || '')) },
+    { id: 'home_enemy_slayer1', category: 'secret', icon: 'bug', reward: 2, name: 'Убийца', desc: 'Убить 10 вражеских фигур на главном экране конями.', secret: true,
       events: ['homeEnemyKill'], check: ({ stats }) => stats.homeEnemiesKilled >= 10 },
-    { id: 'home_enemy_slayer2', category: 'secret', icon: '👹👹', name: 'Пожиратель врагов', desc: 'Убить 1000 вражеских фигур на главном экране конями.', secret: true,
+    { id: 'home_enemy_slayer2', category: 'secret', icon: 'meat', reward: 5, name: 'Пожиратель врагов', desc: 'Убить 1000 вражеских фигур на главном экране конями.', secret: true,
       events: ['homeEnemyKill'], check: ({ stats }) => stats.homeEnemiesKilled >= 1000 },
   ];
 
@@ -454,7 +473,7 @@ const Achievements = (function () {
   // Число достижений/открытых достижений без учёта мета-достижений "Коллекционер" —
   // иначе они не смогли бы разблокироваться сами от себя.
   function baseAchievementsCount() { return ACHIEVEMENTS.filter(a => !a.id.startsWith('meta_')).length; }
-  function baseUnlockedCount() { return Object.keys(data.unlocked).filter(id => !id.startsWith('meta_')).length; }
+  function baseUnlockedCount() { return ACHIEVEMENTS.filter(a => !a.id.startsWith('meta_') && isUnlocked(a.id)).length; }
 
   /* ---------------------------------------------------------------------
      ЛОГИКА РАЗБЛОКИРОВКИ
@@ -474,20 +493,65 @@ const Achievements = (function () {
   }
 
   // Записывает разблокированное достижение в таблицу achievements Supabase.
-  // Работает только для залогиненных пользователей — для гостей остаётся
-  // только локальный прогресс (data.unlocked через saveData()).
+  // Работает только для залогиненных пользователей — у гостя достижение
+  // остаётся несинхронизированным и уйдёт на сервер после входа (см. setUser()).
   async function syncAchievementToSupabase(achievementKey) {
-    if (typeof sb === 'undefined') return;
-    const { data: { user } } = await sb.auth.getUser();
-    if (!user) return;
+    const userId = currentUserId;
+    if (!userId || typeof sb === 'undefined') return;
     const { error } = await sb
       .from('achievements')
-      .upsert({ user_id: user.id, achievement_key: achievementKey },
+      .upsert({ user_id: userId, achievement_key: achievementKey },
               { onConflict: 'user_id,achievement_key', ignoreDuplicates: true });
     if (error) { console.error('Не удалось синхронизировать достижение с Supabase:', error); return; }
     // Награда за достижение — бонусные вопросы нейросети (выдаётся один раз).
-    const { data: reward } = await sb.rpc('claim_achievement_reward', { p_achievement_key: achievementKey });
+    const { data: reward, error: rewardError } = await sb.rpc('claim_achievement_reward', { p_achievement_key: achievementKey });
+    if (rewardError) { console.error('Не удалось получить награду за достижение:', rewardError); return; }
+    if (userId === currentUserId) {
+      data.synced[achievementKey] = true;
+      saveData();
+    }
     if (reward?.[0]?.granted > 0 && typeof window.refreshChatQuota === 'function') window.refreshChatQuota();
+  }
+
+  // Подтягивает достижения аккаунта с сервера и досылает те, что туда не дошли.
+  async function syncWithServer() {
+    const userId = currentUserId;
+    if (!userId || typeof sb === 'undefined') return;
+    const { data: rows, error } = await sb
+      .from('achievements')
+      .select('achievement_key, unlocked_at')
+      .eq('user_id', userId);
+    if (error) { console.error('Не удалось загрузить достижения из Supabase:', error); return; }
+    if (userId !== currentUserId) return;
+
+    rows.forEach((row) => {
+      const id = row.achievement_key;
+      if (!ACHIEVEMENTS.some(a => a.id === id)) return;
+      data.synced[id] = true;
+      if (!data.unlocked[id]) data.unlocked[id] = { date: row.unlocked_at || new Date().toISOString() };
+    });
+    saveData();
+
+    const unsent = ACHIEVEMENTS.map(a => a.id).filter(id => isUnlocked(id) && !data.synced[id]);
+    for (const id of unsent) await syncAchievementToSupabase(id);
+    if (userId === currentUserId) runChecks('meta', {});
+  }
+
+  // Переключает прогресс на вошедшего пользователя (null — на гостя). Гостевой
+  // прогресс переходит в аккаунт, поэтому при следующем выходе гость начинает с нуля.
+  async function setUser(userId) {
+    const nextUserId = userId || null;
+    if (nextUserId === currentUserId) return;
+    const guest = currentUserId ? null : data;
+    currentUserId = nextUserId;
+    data = loadData(storageKey(nextUserId));
+    if (!nextUserId) return;
+    if (guest) {
+      mergeGuestData(guest);
+      saveData();
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+    }
+    await syncWithServer();
   }
 
   function processToastQueue() {
@@ -496,11 +560,11 @@ const Achievements = (function () {
     toastShowing = true;
     const container = ensureToastContainer();
     const el = document.createElement('div');
-    el.className = 'achv-toast';
+    el.className = `achv-toast achv-tier-${def.reward}`;
     el.innerHTML = `
-      <div class="achv-toast-icon">${def.icon}</div>
+      <div class="achv-toast-icon">${achievementIconSvg(def.icon)}</div>
       <div class="achv-toast-body">
-        <div class="achv-toast-title">🏆 ${t('Новое достижение')}</div>
+        <div class="achv-toast-title">${t('Новое достижение')}</div>
         <div class="achv-toast-name">${escapeHtmlLocal(def.name)}</div>
         <div class="achv-toast-desc">${escapeHtmlLocal(def.secret ? t('Секретное достижение открыто') : def.desc)}</div>
       </div>`;
@@ -623,7 +687,7 @@ const Achievements = (function () {
     // Потеря фигур игроком
     if (move.captured && isPlayerSide === false && payload.mode !== 'friend') {
       session.playerPiecesLost++;
-      if (move.captured === 'q') session.queenLostByPlayer = true;
+      if (move.captured === 'q') session.queenLostPly = session.moveCount;
       if (move.captured === 'r') session.playerRooksLost++;
     }
     // Взятия, сделанные игроком: "Хищник", "Снайпер", "Один за всех"
@@ -670,15 +734,9 @@ const Achievements = (function () {
       data.stats.checkTypesGiven = data.stats.checkTypesGiven.concat(move.piece);
       saveData();
     }
-    // Состояние доски: эндшпиль и продвижение пешек
-    if (payload.board) {
-      if (!session.enteredEndgame && countPieces(payload.board) <= 12) {
-        session.enteredEndgame = true;
-        session.enteredEndgameNoCapture = !session.playerHasCapturedAny;
-      }
-      if (!session.allPawnsAdvanced && checkAllPawnsAdvanced(payload.board, session.playerColor)) {
-        session.allPawnsAdvanced = true;
-      }
+    // Состояние доски: продвижение пешек
+    if (payload.board && !session.allPawnsAdvanced && checkAllPawnsAdvanced(payload.board, session.playerColor)) {
+      session.allPawnsAdvanced = true;
     }
     // Тактика
     if (isPlayerSide && payload.board) {
@@ -702,8 +760,9 @@ const Achievements = (function () {
       data.stats.winsTotal++;
       data.stats.currentWinStreak++;
       data.stats.bestWinStreak = Math.max(data.stats.bestWinStreak, data.stats.currentWinStreak);
-    } else if (payload.outcome === 'loss' || payload.outcome === 'draw') {
+    } else if (payload.mode !== 'friend' && (payload.outcome === 'loss' || payload.outcome === 'draw')) {
       // Серию прерывают и поражение, и ничья — bestWinStreak сохраняет исторический максимум.
+      // Партия с другом всегда приходит как ничья и на серию не влияет.
       data.stats.currentWinStreak = 0;
     }
     // Серия побед подряд именно против Stockfish ("Терминатор")
@@ -727,6 +786,10 @@ const Achievements = (function () {
 
   // Вызывается из приложения после завершения анализа партии движком
   function trackAnalysis(info) {
+    // Повторный анализ той же партии ничего не даёт и в счётчик не идёт
+    if (lastGameContext && lastGameContext.analyzed) return;
+    if (lastGameContext) lastGameContext.analyzed = true;
+
     const playerColor = (lastGameContext && lastGameContext.playerColor) || session.playerColor || 'w';
     const outcome = (lastGameContext && lastGameContext.outcome) || 'draw';
     const playerAccuracy = playerColor === 'w' ? info.accuracyWhite : info.accuracyBlack;
@@ -749,8 +812,12 @@ const Achievements = (function () {
       });
     }
 
+    // Точность и Elo короткой партии ничего не значат: один верный ход — уже 100%
+    const enoughMoves = playerMoves.length >= MIN_RATED_MOVES;
     track('analysis', {
-      playerAccuracy, playerElo, playerHasMistake: playerMoves.length ? playerHasMistake : null,
+      playerAccuracy: enoughMoves ? playerAccuracy : null,
+      playerElo: enoughMoves ? playerElo : null,
+      playerHasMistake: enoughMoves ? playerHasMistake : null,
       minPlayerEval, outcome, openingPerfect,
     });
   }
@@ -764,7 +831,7 @@ const Achievements = (function () {
      (см. getSummary() ниже). Отдельная модалка/кнопки достижений убраны:
      доступ к достижениям теперь только через раздел «Достижения» в настройках.
      --------------------------------------------------------------------- */
-  function totalUnlockedCount() { return Object.keys(data.unlocked).length; }
+  function totalUnlockedCount() { return ACHIEVEMENTS.filter(a => isUnlocked(a.id)).length; }
   function totalCount() { return ACHIEVEMENTS.length; }
 
   function init() {
@@ -776,7 +843,7 @@ const Achievements = (function () {
   return {
     getAchievements: () => ACHIEVEMENTS.slice(),
     isUnlocked: (id) => isUnlocked(id),
-    init, track, trackAnalysis, trackBestMoveView,
+    init, track, trackAnalysis, trackBestMoveView, setUser,
     getStats: () => ({ ...data.stats }),
     // Краткая сводка прогресса — используется Achievements View в боковой панели.
     getSummary: () => ({ unlocked: totalUnlockedCount(), total: totalCount() }),

@@ -124,10 +124,20 @@ function initAuth() {
   switchAuthTab('login');
 }
 
+// Переключает достижения на текущий аккаунт. Через setTimeout — запросы к Supabase
+// нельзя делать внутри onAuthStateChange: клиент держит блокировку авторизации.
+function switchAchievementsUser(userId) {
+  setTimeout(async () => {
+    await window.Achievements?.setUser(userId);
+    if (getCurrentView() === 'achievements') renderAchievementsGrid();
+  }, 0);
+}
+
 // Проверка текущей сессии Supabase при загрузке страницы + подписка на её изменения
 async function initSupabaseSession() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
+    switchAchievementsUser(session.user.id);
     await fetchProfileFromSupabase(session.user.id);
     renderMenuProfile();
   }
@@ -135,8 +145,10 @@ async function initSupabaseSession() {
 
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session) {
+      switchAchievementsUser(session.user.id);
       await fetchProfileFromSupabase(session.user.id);
     } else if (event === 'SIGNED_OUT') {
+      switchAchievementsUser(null);
       clearAccount();
     }
     if (event === 'SIGNED_IN') refreshChatQuota().then(resumePendingBuy);

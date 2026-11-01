@@ -101,7 +101,7 @@ function renderAchievementsGrid() {
     const hideInfo = def.secret && !unlocked;
     const name = hideInfo ? '???' : def.name;
     const desc = hideInfo ? t('Секретное достижение') : def.desc;
-    const icon = hideInfo ? '🔒' : def.icon;
+    const icon = achievementIconSvg(hideInfo ? 'lock' : def.icon);
     const dateStr = unlocked ? new Date(window.Achievements.getUnlockDate(def.id)).toLocaleDateString(uiLocale) : '';
     let progressHtml = '';
     if (def.progress && !hideInfo) {
@@ -110,7 +110,7 @@ function renderAchievementsGrid() {
       progressHtml = `<div class="achv-progress"><div class="achv-progress-bar" style="width:${pct}%"></div></div>
         <div class="achv-progress-label">${Math.min(p.current, p.goal)} / ${p.goal}</div>`;
     }
-    return `<div class="achv-card ${unlocked ? 'is-unlocked' : 'is-locked'} ${def.secret ? 'is-secret' : ''}">
+    return `<div class="achv-card achv-tier-${hideInfo ? 'hidden' : def.reward} ${unlocked ? 'is-unlocked' : 'is-locked'} ${def.secret ? 'is-secret' : ''}">
       <div class="achv-card-icon">${icon}</div>
       <div class="achv-card-name">${escapeHtml(name)}</div>
       <div class="achv-card-desc">${escapeHtml(desc)}</div>

@@ -112,14 +112,14 @@ function handleTimeOut(color) {
       text = t('Вы проиграли по времени. Победил соперник.');
       outcome = 'character_win';
     } else {
-      text = t('Время вышло у соперника. Ничья?');
-      outcome = 'draw';
+      text = t('Время вышло у соперника. Вы победили!');
+      outcome = 'player_win';
     }
   }
   state.isGameOver = true;
   stopTimer();
   updateResignButtonLabel();
-  const achvOutcome = state.mode === 'friend' ? 'draw' : (outcome === 'character_win' ? 'loss' : 'draw');
+  const achvOutcome = state.mode === 'friend' ? 'draw' : (outcome === 'player_win' ? 'win' : 'loss');
   reportAchievementGameEnd(achvOutcome);
   showResultModal(text, outcome, 'time');
 }
