@@ -30,8 +30,9 @@ function updateModeIcon(mode) {
   });
 }
 
-/* ---- Выделение режима: тянется от старого режима к новому и подтягивается ---- */
-const MODE_PILL_STRETCH_MS = 340;
+/* ---- Выделение режима: переезжает на новый режим пружинкой, с лёгким перелётом ---- */
+const MODE_PILL_SPRING_MS = 380;
+const MODE_PILL_SPRING_EASING = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
 const MODE_PILL_REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 function placeModePill() {
@@ -41,25 +42,18 @@ function placeModePill() {
   pill.style.height = `${active.offsetHeight}px`;
 }
 
-function stretchModePill() {
+function springModePill() {
   const pill = $id('homeModePill');
   // Начинаем с текущего положения: режим могли сменить посреди анимации
   const { top, height } = getComputedStyle(pill);
-  const startTop = parseFloat(top);
-  const startHeight = parseFloat(height);
   pill.getAnimations().forEach(animation => animation.cancel());
   placeModePill();
   const smooth = !MODE_PILL_REDUCED_MOTION.matches && !document.documentElement.classList.contains('perf-low');
   if (!smooth) return;
-  const endTop = pill.offsetTop;
-  const endHeight = pill.offsetHeight;
-  const stretchedTop = Math.min(startTop, endTop);
-  const stretchedBottom = Math.max(startTop + startHeight, endTop + endHeight);
   pill.animate([
-    { top: `${startTop}px`, height: `${startHeight}px` },
-    { top: `${stretchedTop}px`, height: `${stretchedBottom - stretchedTop}px`, offset: 0.5 },
-    { top: `${endTop}px`, height: `${endHeight}px` },
-  ], { duration: MODE_PILL_STRETCH_MS, easing: 'ease-in-out' });
+    { top, height },
+    { top: pill.style.top, height: pill.style.height },
+  ], { duration: MODE_PILL_SPRING_MS, easing: MODE_PILL_SPRING_EASING });
 }
 
 window.addEventListener('resize', placeModePill);
@@ -75,7 +69,7 @@ document.querySelectorAll('.home-mode-btn').forEach(btn => {
       b.setAttribute('aria-pressed', String(active));
     });
     updateModeIcon(mode);
-    stretchModePill();
+    springModePill();
   });
 });
 

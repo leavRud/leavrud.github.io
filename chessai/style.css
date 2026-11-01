@@ -1332,7 +1332,7 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
   position: relative;
 }
 
-/* Выделение режима. Положение задаёт JS, при смене режима тянется к новому */
+/* Выделение режима. Положение задаёт JS, он же анимирует переезд на новый режим */
 .home-mode-pill {
   position: absolute;
   left: 0;
