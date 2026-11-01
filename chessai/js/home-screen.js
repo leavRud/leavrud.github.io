@@ -11,6 +11,7 @@ function showHomeScreen() {
   hideModal('characterSetupModal');
   hideModal('characterCardModal');
   initHomeFigures();
+  placeModePill();
 }
 function hideHomeScreen() {
   $id('homeScreen').classList.add('hidden');
@@ -29,6 +30,41 @@ function updateModeIcon(mode) {
   });
 }
 
+/* ---- Выделение режима: тянется от старого режима к новому и подтягивается ---- */
+const MODE_PILL_STRETCH_MS = 340;
+const MODE_PILL_REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function placeModePill() {
+  const active = document.querySelector('.home-mode-btn.is-active');
+  const pill = $id('homeModePill');
+  pill.style.top = `${active.offsetTop}px`;
+  pill.style.height = `${active.offsetHeight}px`;
+}
+
+function stretchModePill() {
+  const pill = $id('homeModePill');
+  // Начинаем с текущего положения: режим могли сменить посреди анимации
+  const { top, height } = getComputedStyle(pill);
+  const startTop = parseFloat(top);
+  const startHeight = parseFloat(height);
+  pill.getAnimations().forEach(animation => animation.cancel());
+  placeModePill();
+  const smooth = !MODE_PILL_REDUCED_MOTION.matches && !document.documentElement.classList.contains('perf-low');
+  if (!smooth) return;
+  const endTop = pill.offsetTop;
+  const endHeight = pill.offsetHeight;
+  const stretchedTop = Math.min(startTop, endTop);
+  const stretchedBottom = Math.max(startTop + startHeight, endTop + endHeight);
+  pill.animate([
+    { top: `${startTop}px`, height: `${startHeight}px` },
+    { top: `${stretchedTop}px`, height: `${stretchedBottom - stretchedTop}px`, offset: 0.5 },
+    { top: `${endTop}px`, height: `${endHeight}px` },
+  ], { duration: MODE_PILL_STRETCH_MS, easing: 'ease-in-out' });
+}
+
+window.addEventListener('resize', placeModePill);
+if (document.fonts) document.fonts.ready.then(placeModePill); // размер кнопок зависит от шрифта
+
 document.querySelectorAll('.home-mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const mode = btn.dataset.mode;
@@ -39,6 +75,7 @@ document.querySelectorAll('.home-mode-btn').forEach(btn => {
       b.setAttribute('aria-pressed', String(active));
     });
     updateModeIcon(mode);
+    stretchModePill();
   });
 });
 

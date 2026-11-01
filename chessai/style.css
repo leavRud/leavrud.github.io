@@ -1200,11 +1200,11 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
   z-index: 2;
   background: var(--bg-alt);
   border-radius: 200px;
-  padding: 20px 40px 20px 260px; /* место слева для коня */
+  padding: 20px 40px 20px 200px; /* место слева для коня: до кончика морды */
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 40px;
+  gap: 10px;
   min-width: 780px;
   max-width: 90vw;
   overflow: hidden;           /* обрезает выступающую вниз голову */
@@ -1309,6 +1309,10 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
   font-weight: 600;
   font-size: 45px;
   letter-spacing: 0.25em;
+  /* Посередине между конём и режимами. Разрядка добавляет пустоту и после
+     последней буквы, такой же отступ слева возвращает слово в центр. */
+  margin-inline: auto;
+  padding-left: 0.25em;
   color: var(--text);
   cursor: pointer;
   user-select: none;
@@ -1324,11 +1328,23 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
   display: flex;
   gap: 8px;
   flex-shrink: 0;
-  margin-left: auto;
   flex-direction: column;
+  position: relative;
+}
+
+/* Выделение режима. Положение задаёт JS, при смене режима тянется к новому */
+.home-mode-pill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 40px;
+  background: var(--bg-alt);
+  box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light);
+  pointer-events: none;
 }
 
 .home-mode-btn {
+  position: relative;
   background: transparent;
   color: var(--text-muted);
   border: none;
@@ -1343,8 +1359,6 @@ img.piece-417db { -webkit-user-drag: none; -webkit-touch-callout: none; }
 }
 .home-mode-btn.is-active {
   color: var(--accent);
-  box-shadow: inset 2px 2px 4px var(--shadow-dark), inset -2px -2px 4px var(--shadow-light);
-  background: var(--bg-alt);
 }
 .home-mode-btn:not(.is-active):hover {
   color: var(--text);
