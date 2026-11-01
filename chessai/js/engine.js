@@ -39,6 +39,7 @@ function restartStockfishEngine() {
   isEngineReady = false;
   bgAnalysisState.active = false;
   bgAnalysisState.fen = null;
+  bgAnalysisState.run = null;
   backgroundAnalysisPromise = null;
   engineChain = Promise.resolve();
   initStockfish();
@@ -192,7 +193,8 @@ function scoreAbsoluteWhite(entry, fen) {
 // Промис текущей фоновой задачи анализа (null, если фоновый анализ не идёт)
 let backgroundAnalysisPromise = null;
 // Состояние фонового анализа: активен ли он сейчас и для какой позиции
-const bgAnalysisState = { active: false, fen: null };
+// run — текущий запуск фонового анализа: { cancelled } (см. stopBackgroundAnalysis)
+const bgAnalysisState = { active: false, fen: null, run: null };
 
 // Низкоуровневый запуск поиска Stockfish с накоплением последнего известного
 // результата (bestMove/score/pv/depth) по мере поступления строк "info".
@@ -203,11 +205,15 @@ const bgAnalysisState = { active: false, fen: null };
 // новом depth (пока идёт go infinite/depth), чтобы вызывающий код мог
 // сохранять промежуточный результат в кэш ПО ХОДУ анализа, а не только
 // после остановки (см. ТЗ п.2 — постепенное углубление).
+function emptyAnalysisResult() {
+  return { bestMove: null, score: null, pv: null, depth: 0, seldepth: 0, nodes: 0, timeMs: 0 };
+}
+
 function runEngineAnalysis(fen, opts = {}) {
   return new Promise((resolve) => {
-    if (!stockfish || !isEngineReady) { resolve({ bestMove: null, score: null, pv: null, depth: 0, seldepth: 0, nodes: 0, timeMs: 0 }); return; }
+    if (!stockfish || !isEngineReady) { resolve(emptyAnalysisResult()); return; }
     const startedAt = Date.now();
-    const latest = { bestMove: null, score: null, pv: null, depth: 0, seldepth: 0, nodes: 0, timeMs: 0 };
+    const latest = emptyAnalysisResult();
     let resolved = false;
     const finish = (bestMoveFromUci) => {
       if (resolved) return;
@@ -312,6 +318,10 @@ function runEngineAnalysis(fen, opts = {}) {
 // зависнет навсегда.
 async function stopBackgroundAnalysis() {
   if (!bgAnalysisState.active) return;
+  // Анализ мог ещё стоять в очереди за другой задачей: тогда 'stop' достанется
+  // ей, а "go infinite" стартует позже и остановить его будет некому — ход
+  // соперника ждал бы страховочные 2 минуты. Поэтому отменяем сам запуск.
+  if (bgAnalysisState.run) bgAnalysisState.run.cancelled = true;
   if (stockfish) stockfish.postMessage('stop');
   if (backgroundAnalysisPromise) {
     try { await backgroundAnalysisPromise; } catch (e) { /* игнорируем — не критично */ }
@@ -332,15 +342,18 @@ function startBackgroundAnalysis(fen) {
   const weak = state.settings.analysisMode === 'weak';
   bgAnalysisState.active = true;
   bgAnalysisState.fen = fen;
+  const run = { cancelled: false };
+  bgAnalysisState.run = run;
   const opts = weak
     ? { depth: 12 }
     : { infinite: true, onUpdate: (snapshot) => mergeAnalysisResult(fen, snapshot) };
-  backgroundAnalysisPromise = queueEngineTask(() => runEngineAnalysis(fen, opts))
+  backgroundAnalysisPromise = queueEngineTask(() => (run.cancelled ? emptyAnalysisResult() : runEngineAnalysis(fen, opts)))
     .then((result) => { mergeAnalysisResult(fen, result); })
     .catch(() => { /* игнорируем — просто останется без кэша */ })
     .finally(() => {
       bgAnalysisState.active = false;
       bgAnalysisState.fen = null;
+      bgAnalysisState.run = null;
       backgroundAnalysisPromise = null;
       // В weak-режиме go depth 12 завершается сам по себе, движок реально
       // освобождается — используем эту паузу, чтобы чуть подтянуть самую

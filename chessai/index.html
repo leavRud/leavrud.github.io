@@ -22,8 +22,7 @@
 </script>
 
 <!-- chessboard.js CSS -->
-<link rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+<link rel="stylesheet" href="vendor/chessboard-1.0.0.min.css" />
 
 <!-- Шрифты -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -988,23 +987,23 @@
   </div>
 </div>
 
+<!-- Библиотеки лежат на самом сайте (vendor/, версия в имени файла), а не на CDN:
+     сбой или блокировка CDN иначе ломает приложение целиком. -->
 <!-- jQuery (нужен для chessboard.js) -->
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"
-  integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
-  crossorigin="anonymous"></script>
+<script src="vendor/jquery-3.5.1.min.js"></script>
 
 <!-- chess.js — правила игры -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="vendor/chess-0.10.3.min.js"></script>
 
 <!-- chessboard.js — визуальная доска -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script src="vendor/chessboard-1.0.0.min.js"></script>
 
 <!-- Stockfish (лёгкая версия) -->
 <script src="stockfish/stockfish-18-lite-single.js"></script>
 
 <!-- Основной скрипт приложения -->
 <script src="achievements.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="vendor/supabase-js-2.118.0.js"></script>
 <!-- Логика приложения. Это обычные скрипты с общими глобальными именами,
      поэтому порядок важен: файл может сразу при загрузке пользоваться только
      тем, что объявлено в файлах выше. state.js — первым, main.js — последним. -->
